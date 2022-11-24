@@ -15,6 +15,7 @@ import random
 import os
 import pdb
 
+
 label_dict = {
     '.': np.array([1,0,0]), 
     '(': np.array([0,1,0]), 
@@ -49,27 +50,6 @@ char_dict = {
 }
 
 
-def get_args():
-    argparser = argparse.ArgumentParser(description="diff through pp")
-    argparser.add_argument(
-        '-c', '--config',
-        metavar='C',
-        # default='./config.json',
-        default='ufold/config.json',
-        help='The Configuration file'
-    )
-    argparser.add_argument('--test', type=bool, default=False, 
-        help='skip training to test directly.')
-    argparser.add_argument('--nc', type=bool, default=False,
-        help='whether predict non-canonical pairs.')
-    argparser.add_argument('--train_files', type=str, required=False,nargs='+',default=['RNAStralign','ArchiveII','TR0_with_data_augmentation',
-				'TS0','PDB_train','bpnew','TS1','TS2','TS3'],
-        help='training file name list.')
-    argparser.add_argument('--test_files', required=False,nargs='?',default='ArchiveII',choices=['ArchiveII','TS0','bpnew','TS1','TS2','TS3'],
-        help='test file name')
-    args = argparser.parse_args()
-    return args
-
 def soft_sign(x, k):
     return torch.sigmoid(k * x)
 
@@ -78,7 +58,8 @@ def seq_encoding(string):
     encoding = list(map(lambda x: seq_dict[x], str_list))
     # need to stack
     return np.stack(encoding, axis=0)
-    
+
+
 def Gaussian(x):
     return math.exp(-0.5*(x*x))
 
@@ -210,8 +191,6 @@ def contact2ct(contact, sequence_encoding, seq_len):
     return df
 
 
-    
-
 def padding(data_array, maxlen):
     a, b = data_array.shape
     return np.pad(data_array, ((0,maxlen-a),(0,0)), 'constant')
@@ -223,7 +202,6 @@ def F1_low_tri(opt_state, true_a):
 def acc_low_tri(opt_state, true_a):
 	tril_index = np.tril_indices(len(opt_state),k=-1)
 	return accuracy_score(true_a[tril_index], opt_state[tril_index])
-
 
 
 def logit2binary(pred_contacts):

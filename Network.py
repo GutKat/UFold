@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch.nn import init
 
 CH_FOLD2 = 1
+CH_FOLD = 1
 
 class conv_block(nn.Module):
     def __init__(self,ch_in,ch_out):
@@ -111,7 +112,7 @@ class U_Net_FP(nn.Module):
 
         self.Maxpool = nn.MaxPool2d(kernel_size=2,stride=2)
         FPNch = [8, 16, 32, 64, 128]
-        self.fpn = FP(output_ch=FPNch)
+        self.fpn = FP(output_ch=FPNch) #?? what is that??
 
         self.Conv1 = conv_block(ch_in=img_ch,ch_out=int(32), size=3)
         self.Conv2 = conv_block(ch_in=int(32)+FPNch[0],ch_out=int(64*CH_FOLD), size=3)
@@ -119,7 +120,7 @@ class U_Net_FP(nn.Module):
         self.Conv4 = conv_block(ch_in=int(128*CH_FOLD)+FPNch[2],ch_out=int(256*CH_FOLD))
         self.Conv5 = conv_block(ch_in=int(256*CH_FOLD)+FPNch[3],ch_out=int(512*CH_FOLD))
 
-        self.Up5 = tp_conv(ch_in=int(512*CH_FOLD)+FPNch[4],ch_out=int(256*CH_FOLD))
+        self.Up5 = tp_conv(ch_in=int(512*CH_FOLD)+FPNch[4],ch_out=int(256*CH_FOLD)) #what is tp_conv????
         self.Up_conv5 = conv_block(ch_in=int(512*CH_FOLD)+FPNch[3], ch_out=int(256*CH_FOLD))
 
         self.Up4 = tp_conv(ch_in=int(256*CH_FOLD),ch_out=int(128*CH_FOLD))
@@ -136,7 +137,7 @@ class U_Net_FP(nn.Module):
 
     def forward(self,x, m):
         # encoding path
-        fp1, fp2, fp3, fp4, fp5 = self.fpn(m)
+        fp1, fp2, fp3, fp4, fp5 = self.fpn(m) #this is confusing
 
         x1 = self.Conv1(x)
         x1 = torch.cat((x1, fp1), dim=1)
