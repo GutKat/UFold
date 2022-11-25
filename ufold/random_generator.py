@@ -2,6 +2,9 @@ import RNA
 import random
 import numpy as np
 import math
+
+import torch
+
 from ufold import utils
 
 alphabet = ["A", "C", "G", "U"]
@@ -13,7 +16,7 @@ def random_sequence(length):
     return sequence
 
 
-def generate_random_structures(lengths):
+def generate_random_seq_and_ss(lengths):
     sequences = []
     for length in lengths:
         seq = random_sequence(length)
@@ -55,4 +58,5 @@ def generate_input(sequence):
                 input[k] = kron_prod
                 k += 1
     input[-1] = utils.creatmat(sequence)
+    input = torch.tensor(input, dtype=torch.float32)
     return input
