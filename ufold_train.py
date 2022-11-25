@@ -105,10 +105,9 @@ def train(contact_net,train_merge_generator,epoches_first):
             torch.save(contact_net.state_dict(),  f'../ufold_train_{epoch}.pt')
 
 def main():
-    torch.cuda.set_device(1)
-    
+
     args = get_args()
-    
+    #torch.cuda.set_device(1)
     config_file = args.config
     
     config = process_config(config_file)
@@ -209,7 +208,8 @@ def main():
 
     train(contact_net,train_merge_generator,epoches_first)
 
-        
+RNA_SS_data = collections.namedtuple('RNA_SS_data','seq ss_label length name pairs')
+
 
 #model_eval_all_test()
 if __name__ == '__main__':

@@ -1,14 +1,23 @@
+import random
+
 from ufold import utils
 
-import architecture
+from Network import U_Net
 from torch.optim import Adam
 import torch
 from torch import nn
+from ufold import random_generator
 
-model = architecture.UNET()
+random.seed(42)
+N_seqs = 10
+n_seq = 160
+train_set = []
+for i in range(N_seqs):
+    seq = random_generator.random_sequence(n_seq)
+    train_set.append(random_generator.generate_input(seq))
 
-x = torch.rand(3,17,600,600)
+model = U_Net(img_ch=17)
 
-#x = torch.reshape(x, (1,17,200,200))
-outcome = model(x)
-print(outcome)
+
+#outcome1 = model(x)
+

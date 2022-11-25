@@ -18,10 +18,10 @@ class conv_block(nn.Module):
             nn.ReLU(inplace=True)
         )
 
-
     def forward(self,x):
         x = self.conv(x)
         return x
+
 
 class up_conv(nn.Module):
     def __init__(self,ch_in,ch_out):
@@ -29,8 +29,8 @@ class up_conv(nn.Module):
         self.up = nn.Sequential(
             nn.Upsample(scale_factor=2),
             nn.Conv2d(ch_in,ch_out,kernel_size=3,stride=1,padding=1,bias=True),
-		    nn.BatchNorm2d(ch_out),
-			nn.ReLU(inplace=True)
+            nn.BatchNorm2d(ch_out),
+            nn.ReLU(inplace=True)
         )
 
     def forward(self,x):
@@ -39,30 +39,33 @@ class up_conv(nn.Module):
 
 
 class U_Net(nn.Module):
-    def __init__(self,img_ch=3,output_ch=1):
+    def __init__(self,img_ch=17,output_ch=1):
         super(U_Net,self).__init__()
         
         self.Maxpool = nn.MaxPool2d(kernel_size=2,stride=2)
 
-        self.Conv1 = conv_block(ch_in=img_ch,ch_out=int(32*CH_FOLD2))
-        self.Conv2 = conv_block(ch_in=int(32*CH_FOLD2),ch_out=int(64*CH_FOLD2))
-        self.Conv3 = conv_block(ch_in=int(64*CH_FOLD2),ch_out=int(128*CH_FOLD2))
-        self.Conv4 = conv_block(ch_in=int(128*CH_FOLD2),ch_out=int(256*CH_FOLD2))
-        self.Conv5 = conv_block(ch_in=int(256*CH_FOLD2),ch_out=int(512*CH_FOLD2))
+        #downsampling
+        self.Conv1 = conv_block(ch_in=img_ch,ch_out=32)
+        self.Conv2 = conv_block(32, 64)
+        self.Conv3 = conv_block(64, 128)
+        self.Conv4 = conv_block(128, 256)
+        self.Conv5 = conv_block(256, 512)
 
-        self.Up5 = up_conv(ch_in=int(512*CH_FOLD2),ch_out=int(256*CH_FOLD2))
-        self.Up_conv5 = conv_block(ch_in=int(512*CH_FOLD2), ch_out=int(256*CH_FOLD2))
+        #upsampling
+        self.Up5 = up_conv(512, 256)
+        self.Up_conv5 = conv_block(512, 256)
 
-        self.Up4 = up_conv(ch_in=int(256*CH_FOLD2),ch_out=int(128*CH_FOLD2))
-        self.Up_conv4 = conv_block(ch_in=int(256*CH_FOLD2), ch_out=int(128*CH_FOLD2))
+        self.Up4 = up_conv(256, 128)
+        self.Up_conv4 = conv_block(256, 128)
         
-        self.Up3 = up_conv(ch_in=int(128*CH_FOLD2),ch_out=int(64*CH_FOLD2))
-        self.Up_conv3 = conv_block(ch_in=int(128*CH_FOLD2), ch_out=int(64*CH_FOLD2))
+        self.Up3 = up_conv(128, 64)
+        self.Up_conv3 = conv_block(128, 64)
         
-        self.Up2 = up_conv(ch_in=int(64*CH_FOLD2),ch_out=int(32*CH_FOLD2))
-        self.Up_conv2 = conv_block(ch_in=int(64*CH_FOLD2), ch_out=int(32*CH_FOLD2))
+        self.Up2 = up_conv(64, 32)
+        self.Up_conv2 = conv_block(64, 32)
 
-        self.Conv_1x1 = nn.Conv2d(int(32*CH_FOLD2),output_ch,kernel_size=1,stride=1,padding=0)
+        #last convolution
+        self.end_conv = nn.Conv2d(32,output_ch,kernel_size=1,stride=1,padding=0)
 
 
     def forward(self,x):
@@ -99,7 +102,7 @@ class U_Net(nn.Module):
         d2 = torch.cat((x1,d2),dim=1)
         d2 = self.Up_conv2(d2)
 
-        d1 = self.Conv_1x1(d2)
+        d1 = self.end_conv(d2)
         d1 = d1.squeeze(1)
 
         return torch.transpose(d1, -1, -2) * d1

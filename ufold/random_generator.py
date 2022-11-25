@@ -2,8 +2,7 @@ import RNA
 import random
 import numpy as np
 import math
-import data_generator
-
+from ufold import utils
 
 alphabet = ["A", "C", "G", "U"]
 char_to_int = dict((c, i) for i, c in enumerate(alphabet))
@@ -55,5 +54,5 @@ def generate_input(sequence):
                 kron_prod = np.reshape(kron_prod, (1,n,n))
                 input[k] = kron_prod
                 k += 1
-    input[-1] = data_generator.creatmat(sequence)
+    input[-1] = utils.creatmat(sequence)
     return input
