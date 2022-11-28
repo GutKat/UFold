@@ -126,4 +126,4 @@ if __name__=='__main__':
     #cPickle.dump(all_files_list,open("/data2/darren/experiment/ufold/data/bpRNA_TrainSetA_128.cPickle","wb"))
     #cPickle.dump(all_files_list,open("/data2/darren/experiment/ufold/data/bpRNA_new20201015.cPickle","wb"))
     #cPickle.dump(all_files_list,open("/data2/darren/experiment/ufold/data/pdb_from_yx_test.cPickle","wb"))
-    cPickle.dump(all_files_list,open("/data2/darren/experiment/ufold/upload_github/datanew/TS0.cPickle","wb"))
+    cPickle.dump(all_files_list,open(f"/Users/katringutenbrunner/Desktop/UFold/data/{file_dir[:-1]}.cPickle","wb"))

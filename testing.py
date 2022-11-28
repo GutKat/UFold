@@ -1,12 +1,15 @@
 import random
 
+import numpy as np
 from ufold import utils
 from Network import U_Net
 from torch.optim import Adam
 import torch
 from torch import nn
-from ufold import random_generator
+from ufold import random_generator, postprocess
 
+utils.seed_torch(42)
+random.seed(42)
 
 class random_input():
     def __init__(self, length):
@@ -14,22 +17,52 @@ class random_input():
         self.seq = seq
         self.ss = ss
 
-random.seed(42)
-N_seqs = 10
-n_seq = 16*10
-train_set = []
-for i in range(N_seqs):
-    random_seq = random_input(n_seq)
-    train_set.append(random_seq)
 
-model = U_Net(img_ch=17)
-#model.train()
-random_seq = random_generator.random_sequence(n_seq)
-test1 = random_generator.generate_input(random_seq)
-x = torch.rand(1, 17, n_seq, n_seq)
-test1 = test1.reshape(1, 17, n_seq, n_seq)
-outcome1 = model(test1)
 
-print(outcome1)
+N_seqs = 1
+n_seq = 16*5
+
+def ct2struct(ct):
+    stack = list()
+    struct = list()
+    for i in range(len(ct)):
+        if ct[i] == '(':
+            stack.append(i)
+        if ct[i] == ')':
+            left = stack.pop()
+            struct.append([left, i])
+    return struct
+
+import os
+def create_bbseq_file(sample, path):
+    filename = os.path.split(path)[1]
+    bbseqs = []
+
+    pairs = ct2struct(sample.ss)
+    paired = [0] * len(sample.ss)
+    for pair in pairs:
+        le = pair[0]
+        ri = pair[1]
+        paired[le] = ri + 1
+        paired[ri] = le + 1
+    bbseq = {"seq": sample.seq, "pair": paired}
+    bbseqs.append(bbseq)
+
+    with open(path, "w") as f:
+        seq = bbseq["seq"]
+        pairs = bbseq["pair"]
+        n = len(seq)
+        for index in range(n):
+            line = [str(index+1), str(seq[index]), str(pairs[index])]
+            line = " ".join(line)
+            f.write(line)
+            if index != n-1:
+                f.write("\n")
+    return None
+
+for i in range(100):
+    test = random_input(n_seq)
+    create_bbseq_file(test, f"test_files/test{i}.txt")
+
 
 

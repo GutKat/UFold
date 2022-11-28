@@ -2,6 +2,7 @@ import _pickle as pickle
 import sys
 import os
 
+from datetime import date
 import torch
 import torch.optim as optim
 from torch.utils import data
@@ -12,7 +13,7 @@ import subprocess
 # import sys
 # sys.path.append('./..')
 
-
+date_today = date.today().strftime("%d/%m/%Y")
 # from FCN import FCNNet
 from Network import U_Net as FCNNet
 #from Network3 import U_Net_FP as FCNNet
@@ -102,7 +103,7 @@ def train(contact_net,train_merge_generator,epoches_first):
                 #torch.save(contact_net.state_dict(),  f'models_ckpt/final_model/unet_train_on_RNAlign_restart_{epoch}.pt')
                 #torch.save(contact_net.state_dict(),  f'models_ckpt/final_model/unet_train_on_merge_alldata_{epoch}.pt')
                 #torch.save(contact_net.state_dict(),  f'models_ckpt/final_model/unet_train_on_TR0bpnewOriuseMXUnet_{epoch}.pt')
-            torch.save(contact_net.state_dict(),  f'../ufold_train_{epoch}.pt')
+            torch.save(contact_net.state_dict(),  f'ufold_training/ufold_train_date_today_{epoch}.pt')
 
 def main():
 

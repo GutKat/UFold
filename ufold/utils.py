@@ -20,6 +20,8 @@ label_dict = {
     '(': np.array([0, 1, 0]),
     ')': np.array([0, 0, 1])
 }
+
+
 seq_dict = {
     'A': np.array([1, 0, 0, 0]),
     'U': np.array([0, 1, 0, 0]),
@@ -76,18 +78,19 @@ def get_args():
 def soft_sign(x, k):
     return torch.sigmoid(k * x)
 
-
+#encode sequence to one hot
 def seq_encoding(string):
     str_list = list(string)
     encoding = list(map(lambda x: seq_dict[x], str_list))
     # need to stack
     return np.stack(encoding, axis=0)
 
-
+#function for the 17th channel, to include the distance to the pair
 def Gaussian(x):
     return math.exp(-0.5 * (x * x))
 
 
+#needed for the 17th channel
 def paired(x, y):
     if x == 'A' and y == 'U':
         return 2
@@ -104,7 +107,7 @@ def paired(x, y):
     else:
         return 0
 
-
+#create the matrix for the 17th channel, pairing possibilities
 def creatmat(data):
     mat = np.zeros([len(data), len(data)])
     for i in range(len(data)):
@@ -139,6 +142,7 @@ def createzeromat(data):
 
 
 # can't deal with pseudoknot
+#create pairings
 def ct2struct(ct):
     stack = list()
     struct = list()
@@ -220,6 +224,8 @@ def contact2ct(contact, sequence_encoding, seq_len):
     df['pair_index'] = fifth_col
     df['n'] = last_col
     return df
+
+
 
 
 def padding(data_array, maxlen):
