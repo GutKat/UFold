@@ -34,6 +34,7 @@ def ct2struct(ct):
     return struct
 
 import os
+
 def create_bbseq_file(sample, path):
     filename = os.path.split(path)[1]
     bbseqs = []
