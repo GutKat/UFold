@@ -6,7 +6,7 @@ from datetime import date
 import torch
 import torch.optim as optim
 from torch.utils import data
-
+from torch.utils.tensorboard import SummaryWriter
 import pdb
 import subprocess
 
@@ -21,18 +21,23 @@ from ufold.config import process_config
 from ufold.data_generator import RNASSDataGenerator, Dataset
 from ufold.data_generator import Dataset_Cut_concat_new_merge_multi as Dataset_FCN_merge
 import collections
+import os
 
 
 def train(contact_net,train_merge_generator,epoches_first):
-    steps_done = 0
+    # checking if the directory for new training exist or not.
+    if not os.path.exists(f"ufold_training/{date_today}"):
+        os.makedirs(f"ufold_training/{date_today}")
 
+    steps_done = 0
+    writer = SummaryWriter()
     #set epoch to zero
     epoch = 0
 
     #use cuda device if avaiable
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    #why are we setting it weight?
+    #why are we setting pos_weight weight?
     pos_weight = torch.Tensor([300]).to(device)
     criterion_bce_weighted = torch.nn.BCEWithLogitsLoss(
         pos_weight = pos_weight)
@@ -40,11 +45,11 @@ def train(contact_net,train_merge_generator,epoches_first):
     #optimizer = Adam
     u_optimizer = optim.Adam(contact_net.parameters())
 
+    lowest_loss = 10**10
     #Training
     print('start training...')
     # There are three steps of training
     # step one: train the u net
-    #epoch_rec = [] # maybe delete? not used
     #train for epoches in epoches_first, y is it called like that? y first?
     for epoch in range(epoches_first):
         contact_net.train()     #train on model
@@ -62,20 +67,25 @@ def train(contact_net,train_merge_generator,epoches_first):
     
             # Compute loss
             loss_u = criterion_bce_weighted(pred_contacts*contact_masks, contacts_batch)
-
+            writer.add_scalar("Loss/train", loss_u, epoch)
             # Optimize the model
             u_optimizer.zero_grad()
             loss_u.backward()
             u_optimizer.step()
-
+            writer.flush()
             steps_done= steps_done+1
 
         #print procress
         print('Training log: epoch: {}, step: {}, loss: {}'.format(
                     epoch, steps_done-1, loss_u))
+
         #save to folder
         if epoch > -1:
+            if loss_u < lowest_loss:
+                lowest_loss = loss_u
+                save_best_model = contact_net.state_dict()
             torch.save(contact_net.state_dict(),  f'ufold_training/{date_today}_{epoch}.pt')
+    torch.save(save_best_model, f'ufold_training/{date_today}_best_model.pt')
 
 def main():
 
@@ -132,11 +142,6 @@ def main():
     
     contact_net = FCNNet(img_ch=17)
     contact_net.to(device)
-    
-
-    #if LOAD_MODEL and os.path.isfile(model_path):
-    #    print('Loading u net model...')
-    #    contact_net.load_state_dict(torch.load(model_path))
 
     # for 5s
     # pos_weight = torch.Tensor([100]).to(device)
