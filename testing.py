@@ -1,15 +1,13 @@
 import random
-
 import numpy as np
 from ufold import utils
-from Network import U_Net
-from torch.optim import Adam
-import torch
-from torch import nn
 from ufold import random_generator, postprocess
+import os
+
 
 utils.seed_torch(42)
 random.seed(42)
+
 
 class random_input():
     def __init__(self, length):
@@ -17,10 +15,6 @@ class random_input():
         self.seq = seq
         self.ss = ss
 
-
-
-N_seqs = 1
-n_seq = 16*5
 
 def ct2struct(ct):
     stack = list()
@@ -33,7 +27,6 @@ def ct2struct(ct):
             struct.append([left, i])
     return struct
 
-import os
 
 def create_bbseq_file(sample, path):
     filename = os.path.split(path)[1]
@@ -61,9 +54,21 @@ def create_bbseq_file(sample, path):
                 f.write("\n")
     return None
 
-for i in range(100):
-    test = random_input(n_seq)
-    create_bbseq_file(test, f"test_files/test{i}.txt")
 
+def main():
+    N_seqs = 10000
+    n_seq = 16*10
+
+    folder_path = f"data/test_files/N{10000}_n{n_seq}"
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+
+    for i in range(N_seqs):
+        test = random_input(n_seq)
+        create_bbseq_file(test, f"{folder_path}/test{i}.txt")
+    print(f"finish creating {N_seqs} random sequences with length of {n_seq}")
+
+if __name__ == '__main__':
+    main()
 
 
