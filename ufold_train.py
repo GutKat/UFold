@@ -55,9 +55,9 @@ def train(contact_net,train_merge_generator,epoches_first, lr):
     # There are three steps of training
     # step one: train the u net
     #train for epoches in epoches_first, y is it called like that? y first?
-    for epoch in tqdm(range(epoches_first)):
+    for epoch in range(epoches_first):
         contact_net.train()     #train on model
-        for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name in train_merge_generator:
+        for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name in tqdm(train_merge_generator):
             contacts_batch = torch.Tensor(contacts.float()).to(device)
             seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
             #get contact for prediction of model
