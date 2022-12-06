@@ -2,6 +2,7 @@ import _pickle as pickle
 import sys
 import os
 
+from tqdm import tqdm
 from datetime import date
 import torch
 import torch.optim as optim
@@ -54,13 +55,11 @@ def train(contact_net,train_merge_generator,epoches_first, lr):
     # There are three steps of training
     # step one: train the u net
     #train for epoches in epoches_first, y is it called like that? y first?
-    for epoch in range(epoches_first):
+    for epoch in tqdm(range(epoches_first)):
         contact_net.train()     #train on model
-
         for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name in train_merge_generator:
             contacts_batch = torch.Tensor(contacts.float()).to(device)
             seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
-
             #get contact for prediction of model
             pred_contacts = contact_net(seq_embedding_batch)
 
@@ -74,7 +73,6 @@ def train(contact_net,train_merge_generator,epoches_first, lr):
 
             writer.add_scalar("Loss/train", loss_u, epoch)
             writer.add_scalar('MCC/train', mcc, epoch)
-
 
             # Optimize the model
             u_optimizer.zero_grad()
@@ -96,7 +94,6 @@ def train(contact_net,train_merge_generator,epoches_first, lr):
     torch.save(save_best_model, f'ufold_training/{date_today}_{lr}_best_model.pt')
 
 def main():
-
     args = get_args()
     #cuda is commented, since my pc does not have a cuda
     #torch.cuda.set_device(1)
@@ -122,12 +119,12 @@ def main():
     #we do not use data_type or model_type here.
     data_type = config.data_type
     model_type = config.model_type
+    lr = config.lr
 
     #epochs we want ot train for - dont get the name
     epoches_first = config.epoches_first
     train_files = args.train_files
 
-    lr = args.learning_rate = 0.01
 
 
     # if gpu is to be used

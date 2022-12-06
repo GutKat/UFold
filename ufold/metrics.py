@@ -16,8 +16,8 @@ import numpy as np
 
 
 def mcc(y_true, y_pred):
-    y_pred = torch.tensor(y_pred)
-    y_true = torch.tensor(y_true)
+    y_pred = y_pred.clone().detach()
+    y_true = y_true.clone().detach()
     y_pred_pos = torch.round(torch.clip(y_pred, 0, 1))
     y_pred_neg = 1 - y_pred_pos
     y_pos = torch.round(torch.clip(y_true, 0, 1))
