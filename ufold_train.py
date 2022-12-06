@@ -9,6 +9,7 @@ from torch.utils import data
 from torch.utils.tensorboard import SummaryWriter
 import pdb
 import subprocess
+from sklearn.metrics import matthews_corrcoef
 
 
 date_today = date.today().strftime("%d_%m_%Y")
@@ -23,8 +24,10 @@ from ufold.data_generator import Dataset_Cut_concat_new_merge_multi as Dataset_F
 import collections
 import os
 
+from ufold import metrics
 
-def train(contact_net,train_merge_generator,epoches_first):
+
+def train(contact_net,train_merge_generator,epoches_first, lr):
     # checking if the directory for new training exist or not.
     if not os.path.exists(f"ufold_training/{date_today}"):
         os.makedirs(f"ufold_training/{date_today}")
@@ -37,13 +40,13 @@ def train(contact_net,train_merge_generator,epoches_first):
     #use cuda device if avaiable
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    #why are we setting pos_weight weight?
+    #why are we setting pos_weight?
     pos_weight = torch.Tensor([300]).to(device)
     criterion_bce_weighted = torch.nn.BCEWithLogitsLoss(
         pos_weight = pos_weight)
 
     #optimizer = Adam
-    u_optimizer = optim.Adam(contact_net.parameters())
+    u_optimizer = optim.Adam(contact_net.parameters(), lr=lr)
 
     lowest_loss = 10**10
     #Training
@@ -67,17 +70,22 @@ def train(contact_net,train_merge_generator,epoches_first):
     
             # Compute loss
             loss_u = criterion_bce_weighted(pred_contacts*contact_masks, contacts_batch)
+            mcc = metrics.mcc(contacts_batch, pred_contacts)
+
             writer.add_scalar("Loss/train", loss_u, epoch)
+            writer.add_scalar('MCC/train', mcc, epoch)
+
+
             # Optimize the model
             u_optimizer.zero_grad()
             loss_u.backward()
             u_optimizer.step()
             writer.flush()
-            steps_done= steps_done+1
+            steps_done = steps_done+1
 
         #print procress
-        print('Training log: epoch: {}, step: {}, loss: {}'.format(
-                    epoch, steps_done-1, loss_u))
+        print('Training log: epoch: {}, step: {}, loss: {}, mcc: {}'.format(
+                    epoch, steps_done-1, loss_u, mcc))
 
         #save to folder
         if epoch > -1:
@@ -85,7 +93,7 @@ def train(contact_net,train_merge_generator,epoches_first):
                 lowest_loss = loss_u
                 save_best_model = contact_net.state_dict()
             torch.save(contact_net.state_dict(),  f'ufold_training/{date_today}_{epoch}.pt')
-    torch.save(save_best_model, f'ufold_training/{date_today}_best_model.pt')
+    torch.save(save_best_model, f'ufold_training/{date_today}_{lr}_best_model.pt')
 
 def main():
 
@@ -108,12 +116,19 @@ def main():
     #whats outstep
     OUT_STEP = config.OUT_STEP
     LOAD_MODEL = config.LOAD_MODEL
-    #which data_types are possible? only pickle i think?
+
+    #which data_types are possible? only pickle i think? which model_types are possible
+    #I think this is just that we can use same config file for train and test
+    #we do not use data_type or model_type here.
     data_type = config.data_type
-    # which model_types are possible
     model_type = config.model_type
+
+    #epochs we want ot train for - dont get the name
     epoches_first = config.epoches_first
     train_files = args.train_files
+
+    lr = args.learning_rate = 0.01
+
 
     # if gpu is to be used
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -133,7 +148,7 @@ def main():
     # using the pytorch interface to parallel the data generation and model training
     params = {'batch_size': BATCH_SIZE,
               'shuffle': True,
-              'num_workers': 6,
+              'num_workers': 4,
               'drop_last': True}
 
     train_merge = Dataset_FCN_merge(train_data_list)
@@ -148,7 +163,7 @@ def main():
     # for length as 600
 
     #use train function to train the model
-    train(contact_net,train_merge_generator,epoches_first)
+    train(contact_net,train_merge_generator,epoches_first, lr)
 
 RNA_SS_data = collections.namedtuple('RNA_SS_data','seq ss_label length name pairs')
 
@@ -159,6 +174,7 @@ if __name__ == '__main__':
     See module-level docstring for a description of the script.
     """
     RNA_SS_data = collections.namedtuple('RNA_SS_data','seq ss_label length name pairs')
+
     main()
 
 #torch.save(contact_net.module.state_dict(), model_path + 'unet_final.pt')

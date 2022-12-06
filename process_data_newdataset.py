@@ -84,4 +84,4 @@ if __name__=='__main__':
 
     print(len(all_files_list))
 
-    cPickle.dump(all_files_list,open(f"/Users/katringutenbrunner/Desktop/UFold/data/{file_dir[:-1]}.cPickle","wb"))
+    cPickle.dump(all_files_list,open(f"/Users/katringutenbrunner/Desktop/UFold/{file_dir[:-1]}.cPickle","wb"))

@@ -5,9 +5,6 @@ from ufold import random_generator, postprocess
 import os
 
 
-utils.seed_torch(42)
-random.seed(42)
-
 
 class random_input():
     def __init__(self, length):
@@ -55,11 +52,13 @@ def create_bbseq_file(sample, path):
     return None
 
 
-def main():
+def main(seed= 42):
+    utils.seed_torch(seed)
+    random.seed(seed)
     N_seqs = 10000
     n_seq = 16*10
 
-    folder_path = f"data/test_files/N{10000}_n{n_seq}"
+    folder_path = f"data/test_files/N{N_seqs}_n{n_seq}"
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 

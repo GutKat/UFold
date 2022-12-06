@@ -169,10 +169,15 @@ def main():
     
     # os.environ["CUDA_VISIBLE_DEVICES"]= config.gpu
     MODEL_SAVED = 'ufold_training/02_12_2022/02_12_2022_61.pt'
+    #d (u_net_d) only for saving it in the right way (line 181)
     d = config.u_net_d
     BATCH_SIZE = config.batch_size_stage_1
+
+    #still don't know what out step is
     OUT_STEP = config.OUT_STEP
     LOAD_MODEL = config.LOAD_MODEL
+
+    #data_type and model_type only for saving it in the right way (line 181)
     data_type = config.data_type
     model_type = config.model_type
     model_path = r'/ufold_training/02_12_2022/02_12_2022_61.pt'.format(model_type, data_type,d)
