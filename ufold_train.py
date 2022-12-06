@@ -3,7 +3,8 @@ import sys
 import os
 
 from tqdm import tqdm
-from datetime import date
+from datetime import date, datetime
+
 import torch
 import torch.optim as optim
 from torch.utils import data
@@ -12,8 +13,6 @@ import pdb
 import subprocess
 from sklearn.metrics import matthews_corrcoef
 
-
-date_today = date.today().strftime("%d_%m_%Y")
 # from FCN import FCNNet
 from Network import U_Net as FCNNet
 
@@ -22,19 +21,25 @@ from ufold.config import process_config
 
 from ufold.data_generator import RNASSDataGenerator, Dataset
 from ufold.data_generator import Dataset_Cut_concat_new_merge_multi as Dataset_FCN_merge
+from ufold.data_generator import Dataset_Cut_concat_new_canonicle as Dataset_FCN
 import collections
 import os
 
 from ufold import metrics
 
+date_today = date.today().strftime("%d_%m_%Y")
+now = datetime.now()
+current_time = now.strftime("%H_%M")
 
-def train(contact_net,train_merge_generator,epoches_first, lr):
+
+def train(contact_net,train_merge_generator, train_generator,epoches_first, lr):
     # checking if the directory for new training exist or not.
     if not os.path.exists(f"ufold_training/{date_today}"):
         os.makedirs(f"ufold_training/{date_today}")
 
     steps_done = 0
-    writer = SummaryWriter()
+    if write_tensorboard:
+        writer = SummaryWriter()
     #set epoch to zero
     epoch = 0
 
@@ -51,10 +56,10 @@ def train(contact_net,train_merge_generator,epoches_first, lr):
 
     lowest_loss = 10**10
     #Training
-    print('start training...')
+    print('start training... \n')
     # There are three steps of training
     # step one: train the u net
-    #train for epoches in epoches_first, y is it called like that? y first?
+    # train for epoches in epoches_first, y is it called like that? y first?
     for epoch in range(epoches_first):
         contact_net.train()     #train on model
         for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name in tqdm(train_merge_generator):
@@ -65,33 +70,38 @@ def train(contact_net,train_merge_generator,epoches_first, lr):
 
             #mask out if seq is shorter than prediction , but it shoudln't be shorter than the prediction?
             contact_masks = torch.zeros_like(pred_contacts)
-            contact_masks[:, :seq_lens, :seq_lens] = 1
-    
+            for i in range(len(seq_lens)):
+                contact_masks[i, :seq_lens[i], :seq_lens[i]] = 1
             # Compute loss
             loss_u = criterion_bce_weighted(pred_contacts*contact_masks, contacts_batch)
-            mcc = metrics.mcc(contacts_batch, pred_contacts)
-
-            writer.add_scalar("Loss/train", loss_u, epoch)
-            writer.add_scalar('MCC/train', mcc, epoch)
 
             # Optimize the model
             u_optimizer.zero_grad()
             loss_u.backward()
             u_optimizer.step()
-            writer.flush()
+
             steps_done = steps_done+1
 
+        f1, prec, recall = metrics.model_eval_all_test(contact_net, train_generator)
+        if write_tensorboard:
+            #print to tensorboard in each epoch
+            writer.add_scalar("Loss/train", loss_u, epoch)
+            writer.add_scalar('F1/train', f1, epoch)
+            writer.add_scalar('prec/train', prec, epoch)
+            writer.add_scalar('recall/train', recall, epoch)
+            writer.flush()
+
         #print procress
-        print('Training log: epoch: {}, step: {}, loss: {}, mcc: {}'.format(
-                    epoch, steps_done-1, loss_u, mcc))
+        print('Training log: epoch: {}, step: {}, loss: {}, f1: {}, prec: {}, recall: {}'.format(
+                    epoch, steps_done-1, loss_u, f1, prec, recall))
 
         #save to folder
         if epoch > -1:
             if loss_u < lowest_loss:
                 lowest_loss = loss_u
                 save_best_model = contact_net.state_dict()
-            torch.save(contact_net.state_dict(),  f'ufold_training/{date_today}_{epoch}.pt')
-    torch.save(save_best_model, f'ufold_training/{date_today}_{lr}_best_model.pt')
+            torch.save(contact_net.state_dict(),  f'ufold_training/{date_today}_{current_time}_{epoch}.pt')
+    torch.save(save_best_model, f'ufold_training/{date_today}_{current_time}_{lr}_best_model.pt')
 
 def main():
     args = get_args()
@@ -137,13 +147,20 @@ def main():
     for file_item in train_files:
         print('Loading dataset: ',file_item)
         if file_item == 'RNAStralign' or file_item == 'ArchiveII':
+            train_data = RNASSDataGenerator('data/', file_item+ '.pickle')
             train_data_list.append(RNASSDataGenerator('data/',file_item+'.pickle'))
         else:
             train_data_list.append(RNASSDataGenerator('data/',file_item+'.cPickle'))
+            train_data = RNASSDataGenerator('data/', file_item + '.cPickle')
     print('Data Loading Done!!!')
 
     # using the pytorch interface to parallel the data generation and model training
     params = {'batch_size': BATCH_SIZE,
+              'shuffle': True,
+              'num_workers': 4,
+              'drop_last': False}
+
+    params_evaluate = {'batch_size': 1,
               'shuffle': True,
               'num_workers': 4,
               'drop_last': True}
@@ -151,6 +168,8 @@ def main():
     train_merge = Dataset_FCN_merge(train_data_list)
     train_merge_generator = data.DataLoader(train_merge, **params)
     #pdb.set_trace()
+    train_set = Dataset_FCN(train_data)
+    train_generator = data.DataLoader(train_set, **params_evaluate)
     
     contact_net = FCNNet(img_ch=17)
     contact_net.to(device)
@@ -160,7 +179,7 @@ def main():
     # for length as 600
 
     #use train function to train the model
-    train(contact_net,train_merge_generator,epoches_first, lr)
+    train(contact_net,train_merge_generator, train_generator,epoches_first, lr)
 
 RNA_SS_data = collections.namedtuple('RNA_SS_data','seq ss_label length name pairs')
 
@@ -171,7 +190,7 @@ if __name__ == '__main__':
     See module-level docstring for a description of the script.
     """
     RNA_SS_data = collections.namedtuple('RNA_SS_data','seq ss_label length name pairs')
-
+    write_tensorboard = False
     main()
 
 #torch.save(contact_net.module.state_dict(), model_path + 'unet_final.pt')
