@@ -50,7 +50,7 @@ def mcc(y_true, y_pred):
 
 
 def mcc_model(contact_net, test_generator):
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     contact_net.train()
     mcc_list = list()
     batch_n = 0
@@ -78,7 +78,7 @@ def mcc_model(contact_net, test_generator):
 
 
 def model_eval_all_test(contact_net, test_generator):
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     contact_net.train()
     result_no_train = list()
     result_no_train_shift = list()

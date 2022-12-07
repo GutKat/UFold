@@ -155,6 +155,14 @@ def main():
             train_data_list.append(RNASSDataGenerator('data/',file_item+'.cPickle'))
             train_data = RNASSDataGenerator('data/', file_item + '.cPickle')
     print('Data Loading Done!!!')
+    import json
+    if write_tensorboard:
+        log_file = f"runs/log_files/log_{date_today}_{current_time}.log"
+        with open(log_file, "w") as lf:
+            lf.write(f"date: {date_today} \n")
+            lf.write(f"time: {current_time} \n")
+            lf.write(f"configuration: \n {json.dumps(config)}")
+
 
     # using the pytorch interface to parallel the data generation and model training
     params = {'batch_size': BATCH_SIZE,
@@ -192,7 +200,7 @@ if __name__ == '__main__':
     See module-level docstring for a description of the script.
     """
     RNA_SS_data = collections.namedtuple('RNA_SS_data','seq ss_label length name pairs')
-    write_tensorboard = True
+    write_tensorboard = False
     main()
 
 #torch.save(contact_net.module.state_dict(), model_path + 'unet_final.pt')
