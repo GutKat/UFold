@@ -3,7 +3,7 @@ import numpy as np
 from ufold import utils
 from ufold import random_generator, postprocess
 import os
-
+from tqdm import tqdm
 
 
 class random_input():
@@ -55,14 +55,14 @@ def create_bbseq_file(sample, path):
 def main(seed= 42):
     utils.seed_torch(seed)
     random.seed(seed)
-    N_seqs = 10000
+    N_seqs = 5000
     n_seq = 16*10
 
-    folder_path = f"data/test_files/N{N_seqs}_n{n_seq}"
+    folder_path = f"data/random/N{N_seqs}_n{n_seq}"
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-    for i in range(N_seqs):
+    for i in tqdm(range(N_seqs)):
         test = random_input(n_seq)
         create_bbseq_file(test, f"{folder_path}/test{i}.txt")
     print(f"finish creating {N_seqs} random sequences with length of {n_seq}")
