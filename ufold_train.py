@@ -74,7 +74,8 @@ def train(contact_net,train_merge_generator, train_generator,epoches_first, lr):
                 contact_masks[i, :seq_lens[i], :seq_lens[i]] = 1
             # Compute loss
             loss_u = criterion_bce_weighted(pred_contacts*contact_masks, contacts_batch)
-
+            if write_tensorboard:
+                writer.add_scalar(f"Loss/steps", loss_u, steps_done)
             # Optimize the model
             u_optimizer.zero_grad()
             loss_u.backward()
@@ -82,18 +83,20 @@ def train(contact_net,train_merge_generator, train_generator,epoches_first, lr):
 
             steps_done = steps_done+1
 
-        f1, prec, recall = metrics.model_eval_all_test(contact_net, train_generator)
+        #f1, prec, recall = metrics.model_eval_all_test(contact_net, train_generator)
+        mcc = metrics.mcc_model(contact_net, train_generator)
         if write_tensorboard:
             #print to tensorboard in each epoch
             writer.add_scalar("Loss/train", loss_u, epoch)
-            writer.add_scalar('F1/train', f1, epoch)
-            writer.add_scalar('prec/train', prec, epoch)
-            writer.add_scalar('recall/train', recall, epoch)
+            writer.add_scalar("MCC/train", mcc, epoch)
+            #writer.add_scalar('F1/train', f1, epoch)
+            #writer.add_scalar('prec/train', prec, epoch)
+            #writer.add_scalar('recall/train', recall, epoch)
             writer.flush()
 
         #print procress
-        print('Training log: epoch: {}, step: {}, loss: {}, f1: {}, prec: {}, recall: {}'.format(
-                    epoch, steps_done-1, loss_u, f1, prec, recall))
+        print('Training log: epoch: {}, step: {}, loss: {}, mcc: {}'.format(
+                    epoch, steps_done-1, loss_u, mcc)) # f1: {}, prec: {}, recall: {}, f1, prec, recall
 
         #save to folder
         if epoch > -1:
@@ -134,7 +137,6 @@ def main():
     #epochs we want ot train for - dont get the name
     epoches_first = config.epoches_first
     train_files = args.train_files
-
 
 
     # if gpu is to be used
@@ -190,7 +192,7 @@ if __name__ == '__main__':
     See module-level docstring for a description of the script.
     """
     RNA_SS_data = collections.namedtuple('RNA_SS_data','seq ss_label length name pairs')
-    write_tensorboard = False
+    write_tensorboard = True
     main()
 
 #torch.save(contact_net.module.state_dict(), model_path + 'unet_final.pt')

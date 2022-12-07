@@ -49,6 +49,34 @@ def mcc(y_true, y_pred):
     return numerator / (denominator + eps)
 
 
+def mcc_model(contact_net, test_generator):
+    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    contact_net.train()
+    mcc_list = list()
+    batch_n = 0
+    seq_names = []
+    seq_lens_list = []
+    pos_weight = torch.Tensor([300]).to(device)
+    criterion_bce_weighted = torch.nn.BCEWithLogitsLoss(
+        pos_weight=pos_weight)
+    for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in test_generator:
+        nc_map_nc = nc_map.float() * contacts
+        if seq_lens.item() > 1500:
+            continue
+        batch_n += 1
+        contacts_batch = torch.Tensor(contacts.float()).to(device)
+        seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
+        ##seq_embedding_batch_1 = torch.Tensor(seq_embeddings_1.float()).to(device)
+        seq_ori = torch.Tensor(seq_ori.float()).to(device)
+        seq_names.append(seq_name[0])
+        seq_lens_list.append(seq_lens.item())
+        with torch.no_grad():
+            pred_contacts = contact_net(seq_embedding_batch)
+        mcc_list.append(mcc(contacts_batch, pred_contacts))
+    mcc_np = np.array(mcc_list)
+    return np.average(mcc_np)
+
+
 def model_eval_all_test(contact_net, test_generator):
     device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
     contact_net.train()
