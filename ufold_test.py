@@ -65,7 +65,7 @@ def get_ct_dict_fast(predict_matrix,batch_num,ct_dict,dot_file_dict,seq_embeddin
 
 
 def model_eval_all_test(contact_net,test_generator):
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     contact_net.train()
     result_no_train = list()
     result_no_train_shift = list()
@@ -85,6 +85,7 @@ def model_eval_all_test(contact_net,test_generator):
     for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in test_generator:
         #pdb.set_trace()
         nc_map_nc = nc_map.float() * contacts
+        print(seq_lens.item())
         if seq_lens.item() > 1500:
             continue
         if batch_n%1000==0:

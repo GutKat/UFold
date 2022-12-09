@@ -9,7 +9,6 @@ import torch
 import torch.optim as optim
 from torch.utils import data
 from torch.utils.tensorboard import SummaryWriter
-import pdb
 import subprocess
 from sklearn.metrics import matthews_corrcoef
 
@@ -32,7 +31,7 @@ now = datetime.now()
 current_time = now.strftime("%H_%M")
 
 
-def train(contact_net,train_merge_generator, train_generator,epoches_first, lr):
+def train(contact_net,train_generator,mcc_generator, epoches_first, lr):
     # checking if the directory for new training exist or not.
     if not os.path.exists(f"ufold_training/{date_today}"):
         os.makedirs(f"ufold_training/{date_today}")
@@ -53,7 +52,6 @@ def train(contact_net,train_merge_generator, train_generator,epoches_first, lr):
 
     #optimizer = Adam
     u_optimizer = optim.Adam(contact_net.parameters(), lr=lr)
-
     lowest_loss = 10**10
     #Training
     print('start training... \n')
@@ -62,7 +60,7 @@ def train(contact_net,train_merge_generator, train_generator,epoches_first, lr):
     # train for epoches in epoches_first, y is it called like that? y first?
     for epoch in range(epoches_first):
         contact_net.train()     #train on model
-        for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name in tqdm(train_merge_generator):
+        for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in tqdm(train_generator):
             contacts_batch = torch.Tensor(contacts.float()).to(device)
             seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
             #get contact for prediction of model
@@ -74,8 +72,10 @@ def train(contact_net,train_merge_generator, train_generator,epoches_first, lr):
                 contact_masks[i, :seq_lens[i], :seq_lens[i]] = 1
             # Compute loss
             loss_u = criterion_bce_weighted(pred_contacts*contact_masks, contacts_batch)
+            #mcc_u = metrics.mcc(pred_contacts*contact_masks, contacts_batch)
             if write_tensorboard:
                 writer.add_scalar(f"Loss/steps", loss_u, steps_done)
+                #writer.add_scalar(f"MCC/steps", mcc_u, steps_done)
             # Optimize the model
             u_optimizer.zero_grad()
             loss_u.backward()
@@ -84,11 +84,12 @@ def train(contact_net,train_merge_generator, train_generator,epoches_first, lr):
             steps_done = steps_done+1
 
         #f1, prec, recall = metrics.model_eval_all_test(contact_net, train_generator)
-        mcc = metrics.mcc_model(contact_net, train_generator)
+        mcc_train = metrics.mcc_model(contact_net, mcc_generator, time_it=True, use_set=500)
+
         if write_tensorboard:
             #print to tensorboard in each epoch
             writer.add_scalar("Loss/train", loss_u, epoch)
-            writer.add_scalar("MCC/train", mcc, epoch)
+            writer.add_scalar("MCC/train", mcc_train, epoch)
             #writer.add_scalar('F1/train', f1, epoch)
             #writer.add_scalar('prec/train', prec, epoch)
             #writer.add_scalar('recall/train', recall, epoch)
@@ -96,15 +97,23 @@ def train(contact_net,train_merge_generator, train_generator,epoches_first, lr):
 
         #print procress
         print('Training log: epoch: {}, step: {}, loss: {}, mcc: {}'.format(
-                    epoch, steps_done-1, loss_u, mcc)) # f1: {}, prec: {}, recall: {}, f1, prec, recall
+                    epoch, steps_done-1, loss_u, mcc_train)) # f1: {}, prec: {}, recall: {}, f1, prec, recall
 
         #save to folder
         if epoch > -1:
             if loss_u < lowest_loss:
                 lowest_loss = loss_u
                 save_best_model = contact_net.state_dict()
-            torch.save(contact_net.state_dict(),  f'ufold_training/{date_today}_{current_time}_{epoch}.pt')
-    torch.save(save_best_model, f'ufold_training/{date_today}_{current_time}_{lr}_best_model.pt')
+            #torch.save(contact_net.state_dict(),  f'ufold_training/{date_today}/{current_time}_{epoch}.pt')
+    torch.save(save_best_model, f'ufold_training/{date_today}/{current_time}_{lr}_best_model.pt')
+    #print(save_best_model)
+    contact_net.load_state_dict(save_best_model)
+    contact_net.to(device)
+    f1, prec, recall = metrics.model_eval_all_test(contact_net, train_generator)
+    mcc = metrics.mcc_model(contact_net, mcc_generator, time_it=True)
+    print('Best model: loss: {}, mcc: {}, f1: {}, prec: {}, recall: {}'.format(
+        loss_u, mcc, f1, prec, recall))  # f1: {}, prec: {}, recall: {}, f1, prec, recall
+
 
 def main():
     args = get_args()
@@ -127,7 +136,6 @@ def main():
     OUT_STEP = config.OUT_STEP
     LOAD_MODEL = config.LOAD_MODEL
 
-    #which data_types are possible? only pickle i think? which model_types are possible
     #I think this is just that we can use same config file for train and test
     #we do not use data_type or model_type here.
     data_type = config.data_type
@@ -137,23 +145,54 @@ def main():
     #epochs we want ot train for - dont get the name
     epoches_first = config.epoches_first
     train_files = args.train_files
-
+    validation_file = r"random/N20_n80"
 
     # if gpu is to be used
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     seed_torch()
+
+    params = {'batch_size': BATCH_SIZE,
+              'shuffle': True,
+              'num_workers': 4,
+              'drop_last': False}
+
+    params_evaluate = {'batch_size': 1}
+
     # for loading data
     # loading the rna ss data, the data has been preprocessed
-    train_data_list = []
-    for file_item in train_files:
-        print('Loading dataset: ',file_item)
+    # train_data_list = []
+    if len(train_files) != 1:
+        train_data_list = []
+        for file_item in train_files:
+            print('Loading dataset:',file_item)
+            if file_item == 'RNAStralign' or file_item == 'ArchiveII':
+                train_data_list.append(RNASSDataGenerator('data/',file_item+'.pickle'))
+            else:
+                train_data_list.append(RNASSDataGenerator('data/',file_item+'.cPickle'))
+            mcc_set = RNASSDataGenerator('data/',file_item+'.cPickle')
+        train_merge = Dataset_FCN_merge(train_data_list)
+        train_merge_generator = data.DataLoader(train_merge, **params)
+        # pdb.set_trace()
+        mcc_set = Dataset_FCN(mcc_set)
+        mcc_generator = data.DataLoader(mcc_set, **params_evaluate)
+    else:
+        print('Loading dataset:',train_files)
+        file_item = train_files[0]
         if file_item == 'RNAStralign' or file_item == 'ArchiveII':
-            train_data = RNASSDataGenerator('data/', file_item+ '.pickle')
-            train_data_list.append(RNASSDataGenerator('data/',file_item+'.pickle'))
+            train_set = RNASSDataGenerator('data/',file_item+'.pickle')
         else:
-            train_data_list.append(RNASSDataGenerator('data/',file_item+'.cPickle'))
-            train_data = RNASSDataGenerator('data/', file_item + '.cPickle')
+            train_set = RNASSDataGenerator('data/',file_item+'.cPickle')
+        train_set = Dataset_FCN(train_set)
+        train_generator = data.DataLoader(train_set, **params)
+        # pdb.set_trace()
+        mcc_generator = data.DataLoader(train_set, **params_evaluate)
+
+    # if file_item == 'RNAStralign' or validation_file == 'ArchiveII':
+    #     validation_data = RNASSDataGenerator('data/', validation_file + '.pickle')
+    # else:
+    #     validation_data = RNASSDataGenerator('data/', validation_file + '.cPickle')
+
     print('Data Loading Done!!!')
     import json
     if write_tensorboard:
@@ -163,23 +202,10 @@ def main():
             lf.write(f"time: {current_time} \n")
             lf.write(f"configuration: \n {json.dumps(config)}")
 
-
     # using the pytorch interface to parallel the data generation and model training
-    params = {'batch_size': BATCH_SIZE,
-              'shuffle': True,
-              'num_workers': 4,
-              'drop_last': False}
 
-    params_evaluate = {'batch_size': 1,
-              'shuffle': True,
-              'num_workers': 4,
-              'drop_last': True}
-
-    train_merge = Dataset_FCN_merge(train_data_list)
-    train_merge_generator = data.DataLoader(train_merge, **params)
-    #pdb.set_trace()
-    train_set = Dataset_FCN(train_data)
-    train_generator = data.DataLoader(train_set, **params_evaluate)
+    #val_set = Dataset_FCN(validation_data)
+    #validation_generator = data.DataLoader(val_set, **params_evaluate)
     
     contact_net = FCNNet(img_ch=17)
     contact_net.to(device)
@@ -189,7 +215,7 @@ def main():
     # for length as 600
 
     #use train function to train the model
-    train(contact_net,train_merge_generator, train_generator,epoches_first, lr)
+    train(contact_net, train_generator, mcc_generator, epoches_first, lr)
 
 RNA_SS_data = collections.namedtuple('RNA_SS_data','seq ss_label length name pairs')
 

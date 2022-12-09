@@ -50,10 +50,10 @@ if __name__=='__main__':
         seq = ''.join(t0[1].split('\n'))
 
         if t0[0] == 0:
-            try:
-                one_hot_matrix = one_hot(seq.upper())
-            except:
-                pdb.set_trace()
+            #try:
+            one_hot_matrix = one_hot(seq.upper())
+            #except:
+            #    pdb.set_trace()
         t1 = subprocess.getstatusoutput('awk \'{print $1}\' '+file_dir+item_file)
         t2 = subprocess.getstatusoutput('awk \'{print $3}\' '+file_dir+item_file)
         if t1[0] == 0 and t2[0] == 0:
@@ -81,7 +81,5 @@ if __name__=='__main__':
     ##      end cut sequnce
             sample_tmp = RNA_SS_data(seq=one_hot_matrix_600,ss_label=ss_label_600,length=seq_len,name=seq_name,pairs=pair_dict_all_list)
             all_files_list.append(sample_tmp)
-
-    print(len(all_files_list))
 
     cPickle.dump(all_files_list,open(f"/Users/katringutenbrunner/Desktop/UFold/{file_dir[:-1]}.cPickle","wb"))

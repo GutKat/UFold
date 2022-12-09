@@ -10,6 +10,7 @@ from torch.utils import data
 
 from Network import U_Net as FCNNet
 from ufold.utils import *
+from sklearn.metrics import matthews_corrcoef
 from ufold.config import process_config
 import pdb
 import time
@@ -48,49 +49,98 @@ def mcc(y_true, y_pred):
     eps = 1e-10
     return numerator / (denominator + eps)
 
+#
+# def mcc_sklearn(contact_net, test_generator, time_it=False):
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     contact_net.train()
+#     mcc_list = 0
+#     batch_n = 0
+#     seq_names = []
+#     seq_lens_list = []
+#     run_time = []
+#     pos_weight = torch.Tensor([300]).to(device)
+#     criterion_bce_weighted = torch.nn.BCEWithLogitsLoss(
+#         pos_weight=pos_weight)
+#     for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in test_generator:
+#         tik = time.time()
+#         nc_map_nc = nc_map.float() * contacts
+#         if seq_lens.item() > 1500:
+#             continue
+#         batch_n += 1
+#         contacts_batch = torch.Tensor(contacts.float()).to(device)
+#         seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
+#         ##seq_embedding_batch_1 = torch.Tensor(seq_embeddings_1.float()).to(device)
+#         with torch.no_grad():
+#             pred_contacts = contact_net(seq_embedding_batch)
+#         print(type(contacts_batch), type(pred_contacts))
+#         mcc_list += matthews_corrcoef(contacts_batch, pred_contacts)
+#
+#         tok = time.time()
+#         t0 = tok - tik
+#         run_time.append(t0)
+#     mcc_np = mcc_list / batch_n
+#     if time_it:
+#         print("all run times:", run_time)
+#         print("sum run time in min :", np.sum(run_time) / 60)
+#         print("mean run time:", np.mean(run_time))
+#     return mcc_np
 
-def mcc_model(contact_net, test_generator):
+def mcc_model(contact_net, test_generator, time_it=False, use_set=False):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     contact_net.train()
-    mcc_list = list()
+    mcc_list = 0
     batch_n = 0
-    seq_names = []
-    seq_lens_list = []
+    run_time = []
     pos_weight = torch.Tensor([300]).to(device)
     criterion_bce_weighted = torch.nn.BCEWithLogitsLoss(
         pos_weight=pos_weight)
-    for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in test_generator:
-        nc_map_nc = nc_map.float() * contacts
-        if seq_lens.item() > 1500:
-            continue
-        batch_n += 1
-        contacts_batch = torch.Tensor(contacts.float()).to(device)
-        seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
-        ##seq_embedding_batch_1 = torch.Tensor(seq_embeddings_1.float()).to(device)
-        seq_ori = torch.Tensor(seq_ori.float()).to(device)
-        seq_names.append(seq_name[0])
-        seq_lens_list.append(seq_lens.item())
-        with torch.no_grad():
-            pred_contacts = contact_net(seq_embedding_batch)
-        mcc_list.append(mcc(contacts_batch, pred_contacts))
-    mcc_np = np.array(mcc_list)
-    return np.average(mcc_np)
+    if not use_set:
+        for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in test_generator:
+            tik = time.time()
+            if seq_lens.item() > 1500:
+                continue
+            batch_n += 1
+            contacts_batch = torch.Tensor(contacts.float()).to(device)
+            seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
+            ##seq_embedding_batch_1 = torch.Tensor(seq_embeddings_1.float()).to(device)
+            with torch.no_grad():
+                pred_contacts = contact_net(seq_embedding_batch)
+            mcc_list += mcc(contacts_batch, pred_contacts)
+
+            tok = time.time()
+            t0 = tok - tik
+            run_time.append(t0)
+    else:
+        for i in range(use_set):
+            #contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name = next(iter(test_generator))
+            contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len = next(iter(test_generator))
+            tik = time.time()
+            if seq_lens.item() > 1500:
+                continue
+            batch_n += 1
+            contacts_batch = torch.Tensor(contacts.float()).to(device)
+            seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
+            with torch.no_grad():
+                pred_contacts = contact_net(seq_embedding_batch)
+            mcc_list += mcc(contacts_batch, pred_contacts)
+
+            tok = time.time()
+            t0 = tok - tik
+            run_time.append(t0)
+    mcc_np = mcc_list / batch_n
+    if time_it:
+        print("sum run time:", np.sum(run_time))
+        print("mean run time:", np.mean(run_time))
+    return mcc_np
 
 
 def model_eval_all_test(contact_net, test_generator):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     contact_net.train()
     result_no_train = list()
-    result_no_train_shift = list()
-    seq_lens_list = list()
     batch_n = 0
     result_nc = list()
-    result_nc_tmp = list()
-    ct_dict_all = {}
-    dot_file_dict = {}
-    seq_names = []
     nc_name_list = []
-    seq_lens_list = []
     run_time = []
     pos_weight = torch.Tensor([300]).to(device)
     criterion_bce_weighted = torch.nn.BCEWithLogitsLoss(
@@ -98,17 +148,13 @@ def model_eval_all_test(contact_net, test_generator):
     for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in test_generator:
         # pdb.set_trace()
         nc_map_nc = nc_map.float() * contacts
-        if seq_lens.item() > 1500:
-            continue
+        #if seq_lens.item() > 1500:
+        #    continue
         batch_n += 1
         contacts_batch = torch.Tensor(contacts.float()).to(device)
         seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
         ##seq_embedding_batch_1 = torch.Tensor(seq_embeddings_1.float()).to(device)
-        seq_ori = torch.Tensor(seq_ori.float()).to(device)
-        seq_names.append(seq_name[0])
-        seq_lens_list.append(seq_lens.item())
         tik = time.time()
-
         with torch.no_grad():
             pred_contacts = contact_net(seq_embedding_batch)
 
@@ -136,10 +182,6 @@ def model_eval_all_test(contact_net, test_generator):
             result_nc += result_nc_tmp
             nc_name_list.append(seq_name[0])
 
-    # pdb.set_trace()
-    # print(np.mean(run_time))
-
-    # dot_ct_file = open('results/dot_ct_file.txt','w')
     nt_exact_p, nt_exact_r, nt_exact_f1 = zip(*result_no_train)
     return np.average(nt_exact_f1), np.average(nt_exact_p), np.average(nt_exact_r)
 

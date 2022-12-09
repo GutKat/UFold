@@ -55,8 +55,8 @@ def create_bbseq_file(sample, path):
 def main(seed= 42):
     utils.seed_torch(seed)
     random.seed(seed)
-    N_seqs = 5000
-    n_seq = 16*10
+    N_seqs = 500
+    n_seq = 16*5
 
     folder_path = f"data/random/N{N_seqs}_n{n_seq}"
     if not os.path.exists(folder_path):
