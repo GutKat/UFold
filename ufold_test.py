@@ -157,7 +157,8 @@ def main():
     
     config_file = args.config
     test_file = args.test_files
-    
+    test_file = "random/pickle/N100_n160_test"
+
     config = process_config(config_file)
     print('Here is the configuration of this run: ')
     print(config)
@@ -169,7 +170,8 @@ def main():
 
     
     # os.environ["CUDA_VISIBLE_DEVICES"]= config.gpu
-    MODEL_SAVED = 'ufold_training/02_12_2022/02_12_2022_61.pt'
+    #MODEL_SAVED = 'ufold_training/11_12_2022/19_13_best_model_loss.pt'
+    MODEL_SAVED = 'ufold_training/11_12_2022/19_13_best_model_mcc.pt'
     #d (u_net_d) only for saving it in the right way (line 181)
     d = config.u_net_d
     BATCH_SIZE = config.batch_size_stage_1
@@ -181,12 +183,12 @@ def main():
     #data_type and model_type only for saving it in the right way (line 181)
     data_type = config.data_type
     model_type = config.model_type
-    model_path = r'/ufold_training/02_12_2022/02_12_2022_61.pt'.format(model_type, data_type,d)
+    model_path = r'/ufold_training/10_12_2022/17_03_best_model_loss.pt'.format(model_type, data_type,d)
     epoches_first = config.epoches_first
     
     
     # if gpu is to be used
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     seed_torch()
     

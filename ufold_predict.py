@@ -82,6 +82,7 @@ def get_ct_dict_fast(predict_matrix,batch_num,ct_dict,dot_file_dict,seq_embeddin
     #return ct_dict,dot_file_dict
     return ct_dict,dot_file_dict,tertiary_bp
 
+
 def ct_file_output(pairs, seq, seq_name, save_result_path):
 
     #pdb.set_trace()
@@ -99,6 +100,7 @@ def ct_file_output(pairs, seq, seq_name, save_result_path):
     np.savetxt(os.path.join(save_result_path, seq_name.replace('/','_'))+'.ct', (temp), delimiter='\t', fmt="%s", header='>seq length: ' + str(len(seq)) + '\t seq name: ' + seq_name.replace('/','_') , comments='')
 
     return
+
 
 def type_pairs(pairs, sequence):
     sequence = [i.upper() for i in sequence]
@@ -123,7 +125,7 @@ def type_pairs(pairs, sequence):
 
 
 def model_eval_all_test(contact_net,test_generator):
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     contact_net.train()
     result_no_train = list()
     result_no_train_shift = list()
@@ -224,9 +226,10 @@ def model_eval_all_test(contact_net,test_generator):
     result_dict['shift_weighted_f1'] = np.sum(np.array(nt_shift_f1)*np.array(seq_lens_list)/np.sum(seq_lens_list))
     '''
 
+
 def main():
     torch.multiprocessing.set_sharing_strategy('file_system')
-    torch.cuda.set_device(1)
+    #torch.cuda.set_device(1)
 
     print('Welcome using UFold prediction tool!!!')
 
@@ -247,16 +250,16 @@ def main():
     model_type = config.model_type
     epoches_first = config.epoches_first
 
-    MODEL_SAVED = 'models/ufold_train_alldata.pt'
+    MODEL_SAVED = 'ufold_training/11_12_2022/12_07_best_model.pt'
 
     device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
     seed_torch()
         
     test_data = RNASSDataGenerator_input('data/', 'input')
-    
+    print(test_data)
     params = {'batch_size': BATCH_SIZE,
-              'shuffle': True,
+              'shuffle': False,
               'num_workers': 6,
               'drop_last': True}
 
@@ -266,7 +269,7 @@ def main():
 
     #pdb.set_trace()
     print('==========Start Loading Pretrained Model==========')
-    contact_net.load_state_dict(torch.load(MODEL_SAVED,map_location='cuda:1'))
+    contact_net.load_state_dict(torch.load(MODEL_SAVED,map_location='cpu'))
     print('==========Finish Loading Pretrained Model==========')
     # contact_net = nn.DataParallel(contact_net, device_ids=[3, 4])
     contact_net.to(device)

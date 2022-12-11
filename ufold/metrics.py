@@ -10,7 +10,7 @@ from torch.utils import data
 
 from Network import U_Net as FCNNet
 from ufold.utils import *
-from sklearn.metrics import matthews_corrcoef
+from sklearn.metrics import matthews_corrcoef, f1_score, precision_score, recall_score
 from ufold.config import process_config
 import pdb
 import time
@@ -134,7 +134,7 @@ def mcc_model(contact_net, test_generator, time_it=False, use_set=False):
     return mcc_np
 
 
-def model_eval_all_test(contact_net, test_generator):
+def model_eval_all_test(contact_net, test_generator, use_set = False):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     contact_net.train()
     result_no_train = list()
@@ -145,42 +145,83 @@ def model_eval_all_test(contact_net, test_generator):
     pos_weight = torch.Tensor([300]).to(device)
     criterion_bce_weighted = torch.nn.BCEWithLogitsLoss(
         pos_weight=pos_weight)
-    for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in test_generator:
-        # pdb.set_trace()
-        nc_map_nc = nc_map.float() * contacts
-        #if seq_lens.item() > 1500:
-        #    continue
-        batch_n += 1
-        contacts_batch = torch.Tensor(contacts.float()).to(device)
-        seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
-        ##seq_embedding_batch_1 = torch.Tensor(seq_embeddings_1.float()).to(device)
-        tik = time.time()
-        with torch.no_grad():
-            pred_contacts = contact_net(seq_embedding_batch)
-
-        # only post-processing without learning
-        u_no_train = postprocess(pred_contacts,
-                                 seq_ori, 0.01, 0.1, 100, 1.6, True, 1.5)  ## 1.6
-        nc_no_train = nc_map.float().to(device) * u_no_train
-        map_no_train = (u_no_train > 0.5).float()
-        map_no_train_nc = (nc_no_train > 0.5).float()
-
-        tok = time.time()
-        t0 = tok - tik
-        run_time.append(t0)
-
-        result_no_train_tmp = list(map(lambda i: evaluate_exact_new(map_no_train.cpu()[i],
-                                                                    contacts_batch.cpu()[i]),
-                                       range(contacts_batch.shape[0])))
-        result_no_train += result_no_train_tmp
-
-        if nc_map_nc.sum() != 0:
+    if not use_set:
+        for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in test_generator:
             # pdb.set_trace()
-            result_nc_tmp = list(map(lambda i: evaluate_exact_new(map_no_train_nc.cpu()[i],
-                                                                  nc_map_nc.cpu().float()[i]),
-                                     range(contacts_batch.shape[0])))
-            result_nc += result_nc_tmp
-            nc_name_list.append(seq_name[0])
+            nc_map_nc = nc_map.float() * contacts
+            #if seq_lens.item() > 1500:
+            #    continue
+            batch_n += 1
+            contacts_batch = torch.Tensor(contacts.float()).to(device)
+            seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
+            ##seq_embedding_batch_1 = torch.Tensor(seq_embeddings_1.float()).to(device)
+            tik = time.time()
+            with torch.no_grad():
+                pred_contacts = contact_net(seq_embedding_batch)
+
+            # only post-processing without learning
+            u_no_train = postprocess(pred_contacts,
+                                     seq_ori, 0.01, 0.1, 100, 1.6, True, 1.5)  ## 1.6
+            nc_no_train = nc_map.float().to(device) * u_no_train
+            map_no_train = (u_no_train > 0.5).float()
+            map_no_train_nc = (nc_no_train > 0.5).float()
+
+            tok = time.time()
+            t0 = tok - tik
+            run_time.append(t0)
+
+            result_no_train_tmp = list(map(lambda i: evaluate_exact_new(map_no_train.cpu()[i],
+                                                                        contacts_batch.cpu()[i]),
+                                           range(contacts_batch.shape[0])))
+            result_no_train += result_no_train_tmp
+
+            if nc_map_nc.sum() != 0:
+                # pdb.set_trace()
+                result_nc_tmp = list(map(lambda i: evaluate_exact_new(map_no_train_nc.cpu()[i],
+                                                                      nc_map_nc.cpu().float()[i]),
+                                         range(contacts_batch.shape[0])))
+                result_nc += result_nc_tmp
+                nc_name_list.append(seq_name[0])
+    else:
+        for i in range(use_set):
+            #contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name = next(iter(test_generator))
+            contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len = next(iter(test_generator))
+            # pdb.set_trace()
+            nc_map_nc = nc_map.float() * contacts
+            # if seq_lens.item() > 1500:
+            #    continue
+            batch_n += 1
+            contacts_batch = torch.Tensor(contacts.float()).to(device)
+            seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
+            ##seq_embedding_batch_1 = torch.Tensor(seq_embeddings_1.float()).to(device)
+            tik = time.time()
+            with torch.no_grad():
+                pred_contacts = contact_net(seq_embedding_batch)
+
+            # only post-processing without learning
+            u_no_train = postprocess(pred_contacts,
+                                     seq_ori, 0.01, 0.1, 100, 1.6, True, 1.5)  ## 1.6
+            nc_no_train = nc_map.float().to(device) * u_no_train
+            map_no_train = (u_no_train > 0.5).float()
+            map_no_train_nc = (nc_no_train > 0.5).float()
+
+            tok = time.time()
+            t0 = tok - tik
+            run_time.append(t0)
+
+            result_no_train_tmp = list(map(lambda i: evaluate_exact_new(map_no_train.cpu()[i],
+                                                                        contacts_batch.cpu()[i]),
+                                           range(contacts_batch.shape[0])))
+            result_no_train += result_no_train_tmp
+
+            if nc_map_nc.sum() != 0:
+                # pdb.set_trace()
+                result_nc_tmp = list(map(lambda i: evaluate_exact_new(map_no_train_nc.cpu()[i],
+                                                                      nc_map_nc.cpu().float()[i]),
+                                         range(contacts_batch.shape[0])))
+                result_nc += result_nc_tmp
+                nc_name_list.append(seq_name[0])
+
 
     nt_exact_p, nt_exact_r, nt_exact_f1 = zip(*result_no_train)
     return np.average(nt_exact_f1), np.average(nt_exact_p), np.average(nt_exact_r)
@@ -190,6 +231,53 @@ def model_eval_all_test(contact_net, test_generator):
     #    pickle.dump(result_dict,f)
     # with open('../results/rnastralign_short_pure_pp_evaluation_dict.pickle', 'wb') as f:
     #     pickle.dump(result_dict, f)
+
+
+def prediction_evaluation_sklearn(pred, true):
+    with open(pred, "r") as p:
+        data_pred = p.read()
+    data_pred = data_pred.split("\n")
+    name = []
+    seq = []
+    ss = []
+    for i in range(0, len(data_pred) - 2, 4):
+        name.append(data_pred[i])
+        seq.append(data_pred[i + 1])
+        ss_i = data_pred[i + 2]
+        ss_i = ss_i.replace(".", "0")
+        ss_i = ss_i.replace("(", "1")
+        ss_i = ss_i.replace(")", "2")
+        ss_i = list(ss_i)
+        ss.append(ss_i)
+    predictions = [name, seq, ss]
+
+    with open(true, "r") as t:
+        data_true = t.read()
+    data_true = data_true.split("\n")
+    name = []
+    seq = []
+    ss = []
+    for i in range(0, len(data_true) - 2, 3):
+        name.append(data_true[i])
+        seq.append(data_true[i + 1])
+        ss_i = data_true[i + 2]
+        ss_i = ss_i.replace(".", "0")
+        ss_i = ss_i.replace("(", "1")
+        ss_i = ss_i.replace(")", "2")
+        ss_i = list(ss_i)
+        ss.append(ss_i)
+
+    true = [name, seq, ss]
+    mcc = []
+    f1 = []
+    prec = []
+    recall = []
+    for i in range(len(ss)):
+        mcc.append(matthews_corrcoef(true[2][i], predictions[2][i]))
+        f1.append(f1_score(true[2][i], predictions[2][i]))
+        prec.append(f1_score(true[2][i], predictions[2][i]))
+        recall.append(f1_score(true[2][i], predictions[2][i]))
+    return np.mean(mcc), np.mean(f1), np.mean(prec), np.mean(recall)
 
 # def specificity(y_true, y_pred):
 #     neg_y_true = 1 - y_true

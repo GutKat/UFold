@@ -1,7 +1,7 @@
 import random
 import numpy as np
 from ufold import utils
-from ufold import random_generator, postprocess
+from ufold import random_generator, postprocess, metrics
 import os
 from tqdm import tqdm
 
@@ -52,13 +52,13 @@ def create_bbseq_file(sample, path):
     return None
 
 
-def main(seed= 42):
+def bp_file(seed=42):
     utils.seed_torch(seed)
     random.seed(seed)
-    N_seqs = 500
-    n_seq = 16*5
+    N_seqs = 100
+    n_seq = 16*10
 
-    folder_path = f"data/random/N{N_seqs}_n{n_seq}"
+    folder_path = f"data/random/raw/N{N_seqs}_n{n_seq}_test"
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
@@ -67,7 +67,35 @@ def main(seed= 42):
         create_bbseq_file(test, f"{folder_path}/test{i}.txt")
     print(f"finish creating {N_seqs} random sequences with length of {n_seq}")
 
+
+def create_fa(seed=42):
+    utils.seed_torch(seed)
+    random.seed(seed)
+    N_seqs = 100
+    n_seq = 16*10
+    file_fa = f"data/input.txt"
+    file_fa_ss = f"data/random/raw/N{N_seqs}_n{n_seq}_ss.fa"
+    data = []
+    for i in range(N_seqs):
+        data.append(random_input(n_seq))
+
+    with open(file_fa, "w") as f:
+        for i, dat in enumerate(data):
+            f.write(f">random_{i+1}\n")
+            f.write(dat.seq)
+            f.write("\n")
+    with open(file_fa_ss, "w") as f:
+        for i, dat in enumerate(data):
+            f.write(f">random_{i+1}\n")
+            f.write(f"{dat.seq}\n{dat.ss}")
+            f.write("\n")
+
 if __name__ == '__main__':
-    main()
+    #pass
+    bp_file(seed=20)
+    #create_fa()
+    # true = "data/random/N100_n160_ss.fa"
+    # pred = "results/input_dot_ct_file.txt"
+    # result = metrics.prediction_evaluation(pred, true)
 
 
