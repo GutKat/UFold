@@ -27,8 +27,6 @@ def ct2struct(ct):
 
 def create_bbseq_file(sample, path):
     filename = os.path.split(path)[1]
-    bbseqs = []
-
     pairs = ct2struct(sample.ss)
     paired = [0] * len(sample.ss)
     for pair in pairs:
@@ -37,8 +35,6 @@ def create_bbseq_file(sample, path):
         paired[le] = ri + 1
         paired[ri] = le + 1
     bbseq = {"seq": sample.seq, "pair": paired}
-    bbseqs.append(bbseq)
-
     with open(path, "w") as f:
         seq = bbseq["seq"]
         pairs = bbseq["pair"]
@@ -52,27 +48,28 @@ def create_bbseq_file(sample, path):
     return None
 
 
-def bp_file(seed=42):
+def bp_file(N_seqs, n_seq, purpose="train"):
+    seed_dict = {"val": 10, "test": 20, "train": 30}
+    seed = seed_dict[purpose]
+
     utils.seed_torch(seed)
     random.seed(seed)
-    N_seqs = 100
-    n_seq = 16*10
 
-    folder_path = f"data/random/raw/N{N_seqs}_n{n_seq}_test"
+    folder_path = f"data/random/raw/N{N_seqs}_n{n_seq}_{purpose}"
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
+    files = []
     for i in tqdm(range(N_seqs)):
         test = random_input(n_seq)
+        files.append(test)
         create_bbseq_file(test, f"{folder_path}/test{i}.txt")
     print(f"finish creating {N_seqs} random sequences with length of {n_seq}")
+#
 
-
-def create_fa(seed=42):
+def create_fa(N_seqs, n_seq, seed=42):
     utils.seed_torch(seed)
     random.seed(seed)
-    N_seqs = 100
-    n_seq = 16*10
     file_fa = f"data/input.txt"
     file_fa_ss = f"data/random/raw/N{N_seqs}_n{n_seq}_ss.fa"
     data = []
@@ -92,8 +89,11 @@ def create_fa(seed=42):
 
 if __name__ == '__main__':
     #pass
-    bp_file(seed=20)
-    #create_fa()
+    N_seqs = 50000
+    n_seq = 100
+    purpose = "train"
+    bp_file(N_seqs=N_seqs, n_seq=n_seq, purpose=purpose)
+    #create_fa(N_seqs=N_seqs, n_seq=n_seq)
     # true = "data/random/N100_n160_ss.fa"
     # pred = "results/input_dot_ct_file.txt"
     # result = metrics.prediction_evaluation(pred, true)

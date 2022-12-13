@@ -16,7 +16,6 @@ from ufold.data_generator import Dataset_Cut_concat_new_canonicle as Dataset_FCN
 import collections
 
 
-RNA_SS_data = collections.namedtuple('RNA_SS_data','seq ss_label length name pairs')
 args = get_args()
 if args.nc:
     from ufold.postprocess import postprocess_new_nc as postprocess
@@ -25,8 +24,9 @@ else:
 
 
 def get_seq(contact):
-    seq = torch.mul(contact.argmax(axis=1), contact.sum(axis = 1).clamp_max(1))
-    seq[contact.sum(axis = 1) == 0] = -1
+    seq = None
+    seq = torch.mul(contact.argmax(axis=1), contact.sum(axis=1).clamp_max(1))
+    seq[contact.sum(axis=1) == 0] = -1
     return seq
 
 
@@ -40,14 +40,14 @@ def seq2dot(seq):
     return dot_file
 
 
-def get_ct_dict(predict_matrix,batch_num,ct_dict):
+def get_ct_dict(predict_matrix, batch_num, ct_dict):
     for i in range(0, predict_matrix.shape[1]):
         for j in range(0, predict_matrix.shape[1]):
-            if predict_matrix[:,i,j] == 1:
+            if predict_matrix[:, i, j] == 1:
                 if batch_num in ct_dict.keys():
-                    ct_dict[batch_num] = ct_dict[batch_num] + [(i,j)]
+                    ct_dict[batch_num] = ct_dict[batch_num] + [(i, j)]
                 else:
-                    ct_dict[batch_num] = [(i,j)]
+                    ct_dict[batch_num] = [(i, j)]
     return ct_dict
 
 
@@ -85,7 +85,6 @@ def model_eval_all_test(contact_net,test_generator):
     for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in test_generator:
         #pdb.set_trace()
         nc_map_nc = nc_map.float() * contacts
-        print(seq_lens.item())
         if seq_lens.item() > 1500:
             continue
         if batch_n%1000==0:
@@ -124,9 +123,10 @@ def model_eval_all_test(contact_net,test_generator):
         #pdb.set_trace()
 
         result_no_train_tmp = list(map(lambda i: evaluate_exact_new(map_no_train.cpu()[i],
-            contacts_batch.cpu()[i]), range(contacts_batch.shape[0])))
+                                                                    contacts_batch.cpu()[i]),
+                                       range(contacts_batch.shape[0])))
         result_no_train += result_no_train_tmp
-        
+
         if nc_map_nc.sum() != 0:
             #pdb.set_trace()
             result_nc_tmp = list(map(lambda i: evaluate_exact_new(map_no_train_nc.cpu()[i],
@@ -154,24 +154,26 @@ def main():
     torch.multiprocessing.set_sharing_strategy('file_system')
     #torch.cuda.set_device(2)
     #pdb.set_trace()
-    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     config_file = args.config
     test_file = args.test_files
-    test_file = "random/pickle/N100_n160_test"
+    test_file = r"random/pickle/N100_n200_train"
 
     config = process_config(config_file)
     print('Here is the configuration of this run: ')
     print(config)
 
-    # if test_file not in ['TS1','TS2','TS3']:
-    #     MODEL_SAVED = 'models/ufold_train.pt'
-    # else:
-    #     MODEL_SAVED = 'models/ufold_train_pdbfinetune.pt'
-
-    
+    if test_file not in ['TS1','TS2','TS3']:
+        MODEL_SAVED = 'models/ufold_train.pt'
+    else:
+        MODEL_SAVED = 'models/ufold_train_pdbfinetune.pt'
+    #MODEL_SAVED = "ufold_training/og/ufold_train_9.pt"
+    MODEL_SAVED = "ufold_training/13_12_2022/14_26_0.pt"
     # os.environ["CUDA_VISIBLE_DEVICES"]= config.gpu
     #MODEL_SAVED = 'ufold_training/11_12_2022/19_13_best_model_loss.pt'
-    MODEL_SAVED = 'ufold_training/11_12_2022/19_13_best_model_mcc.pt'
+
+    #MODEL_SAVED = 'models/ufold_train_pdbfinetune.pt'
     #d (u_net_d) only for saving it in the right way (line 181)
     d = config.u_net_d
     BATCH_SIZE = config.batch_size_stage_1
@@ -183,7 +185,7 @@ def main():
     #data_type and model_type only for saving it in the right way (line 181)
     data_type = config.data_type
     model_type = config.model_type
-    model_path = r'/ufold_training/10_12_2022/17_03_best_model_loss.pt'.format(model_type, data_type,d)
+    #model_path = r'/ufold_training/10_12_2022/17_03_best_model_loss.pt'.format(model_type, data_type,d)
     epoches_first = config.epoches_first
     
     
@@ -202,11 +204,12 @@ def main():
     else:
         test_data = RNASSDataGenerator('data/',test_file+'.cPickle')
     seq_len = test_data.data_y.shape[-2]
+
     print('Max seq length ', seq_len)
     #pdb.set_trace()
     
     # using the pytorch interface to parallel the data generation and model training
-    params = {'batch_size': BATCH_SIZE,
+    params = {'batch_size': 1,
               'shuffle': True,
               'num_workers': 6,
               'drop_last': True}
@@ -225,12 +228,15 @@ def main():
     
     #pdb.set_trace()
     print('==========Start Loading==========')
-    contact_net.load_state_dict(torch.load(MODEL_SAVED,map_location='cpu'))
+    contact_net.load_state_dict(torch.load(MODEL_SAVED, map_location=device))
+    #contact_net.load_state_dict(torch.load(MODEL_SAVED, map_location='cpu'))
     print('==========Finish Loading==========')
     # contact_net = nn.DataParallel(contact_net, device_ids=[3, 4])
     contact_net.to(device)
     model_eval_all_test(contact_net,test_generator)
 
+
+RNA_SS_data = collections.namedtuple('RNA_SS_data','seq ss_label length name pairs')
 
 if __name__ == '__main__':
     """
@@ -238,8 +244,6 @@ if __name__ == '__main__':
     """
     RNA_SS_data = collections.namedtuple('RNA_SS_data','seq ss_label length name pairs')
     main()
-
-
 
 
 

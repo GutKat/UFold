@@ -60,7 +60,6 @@ if __name__=='__main__':
             pair_dict_all_list = [[int(item_tmp)-1,int(t2[1].split('\n')[index_tmp])-1] for index_tmp,item_tmp in enumerate(t1[1].split('\n')) if int(t2[1].split('\n')[index_tmp]) != 0]
         else:
             pair_dict_all_list = []
-
         seq_name = item_file
         seq_len = len(seq)
         pair_dict_all = dict([item for item in pair_dict_all_list if item[0]<item[1]])
@@ -73,6 +72,7 @@ if __name__=='__main__':
             ss_label[[*pair_dict_all.values()],] = [0,0,1]
             ss_label[np.where(np.sum(ss_label,axis=1) <= 0)[0],] = [1,0,0]
             #print index
+
             one_hot_matrix_600 = np.zeros((600,4))
             one_hot_matrix_600[:seq_len,] = one_hot_matrix
             ss_label_600 = np.zeros((600,3),dtype=int)
