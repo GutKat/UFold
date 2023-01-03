@@ -250,7 +250,7 @@ def main():
     model_type = config.model_type
     epoches_first = config.epoches_first
 
-    MODEL_SAVED = 'ufold_training/11_12_2022/12_07_best_model.pt'
+    MODEL_SAVED = 'ufold_training/19_12_2022/18_54_0.pt'
 
     device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 

@@ -14,6 +14,7 @@ import time
 from ufold.data_generator import RNASSDataGenerator, Dataset
 from ufold.data_generator import Dataset_Cut_concat_new_canonicle as Dataset_FCN
 import collections
+from ufold.metrics import mcc_model, mcc_model_postprocessed, model_eval_all_test_no_postprocessing, model_eval_all_test_postprocessing
 
 
 args = get_args()
@@ -67,82 +68,19 @@ def get_ct_dict_fast(predict_matrix,batch_num,ct_dict,dot_file_dict,seq_embeddin
 def model_eval_all_test(contact_net,test_generator):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     contact_net.train()
-    result_no_train = list()
-    result_no_train_shift = list()
-    seq_lens_list = list()
-    batch_n = 0
-    result_nc = list()
-    result_nc_tmp = list()
-    ct_dict_all = {}
-    dot_file_dict = {}
-    seq_names = []
-    nc_name_list = []
-    seq_lens_list = []
-    run_time = []
     pos_weight = torch.Tensor([300]).to(device)
     criterion_bce_weighted = torch.nn.BCEWithLogitsLoss(
         pos_weight = pos_weight)
-    for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in test_generator:
-        #pdb.set_trace()
-        nc_map_nc = nc_map.float() * contacts
-        if seq_lens.item() > 1500:
-            continue
-        if batch_n%1000==0:
-            print('Batch number: ', batch_n)
-        batch_n += 1
-        contacts_batch = torch.Tensor(contacts.float()).to(device)
-        seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
-        ##seq_embedding_batch_1 = torch.Tensor(seq_embeddings_1.float()).to(device)
-        seq_ori = torch.Tensor(seq_ori.float()).to(device)
-        seq_names.append(seq_name[0])
-        seq_lens_list.append(seq_lens.item())
-        tik = time.time()
-        
-        with torch.no_grad():
-            pred_contacts = contact_net(seq_embedding_batch)
-
-        # only post-processing without learning
-        u_no_train = postprocess(pred_contacts,
-            seq_ori, 0.01, 0.1, 100, 1.6, True,1.5) ## 1.6
-        nc_no_train = nc_map.float().to(device) * u_no_train
-        map_no_train = (u_no_train > 0.5).float()
-        map_no_train_nc = (nc_no_train > 0.5).float()
-        
-        tok = time.time()
-        t0 = tok - tik
-        run_time.append(t0)
-        ## add fine tune
-        #threshold = 0.5
-        '''
-        while map_no_train.sum(axis=1).max() > 1:
-            u_no_train = postprocess(u_no_train,seq_ori, 0.01, 0.1, 50, 1.0, True)
-            threshold += 0.005
-            map_no_train = (u_no_train > threshold).float()
-        '''
-        ## end fine tune
-        #pdb.set_trace()
-
-        result_no_train_tmp = list(map(lambda i: evaluate_exact_new(map_no_train.cpu()[i],
-                                                                    contacts_batch.cpu()[i]),
-                                       range(contacts_batch.shape[0])))
-        result_no_train += result_no_train_tmp
-
-        if nc_map_nc.sum() != 0:
-            #pdb.set_trace()
-            result_nc_tmp = list(map(lambda i: evaluate_exact_new(map_no_train_nc.cpu()[i],
-                nc_map_nc.cpu().float()[i]), range(contacts_batch.shape[0])))
-            result_nc += result_nc_tmp
-            nc_name_list.append(seq_name[0])
-
-    #pdb.set_trace()
+    result_postprocessed = model_eval_all_test_no_postprocessing(contact_net, test_generator)
+    result_no_postprocessing = model_eval_all_test_postprocessing(contact_net, test_generator)
+    mcc_no_postprocess = mcc_model(contact_net, test_generator)
+    mcc_postprocessed = mcc_model_postprocessed(contact_net, test_generator)
     #print(np.mean(run_time))
+    print("MCC no postprocess: {:1.2f}, MCC postprocessed: {:1.2f}".format(mcc_no_postprocess, mcc_postprocessed))
+    print('Postprocessed: f1: {:1.2f}, prec: {:1.2f}, recall: {:1.2f}'.format(result_postprocessed[0], result_postprocessed[1], result_postprocessed[2]))  # f1: {}, prec: {}, recall: {}, f1, prec, recall
+    print('No Postprocessing: f1: {:.2f}, prec: {:.2f}, recall: {:.2f}'.format(result_no_postprocessing[0], result_no_postprocessing[1], result_no_postprocessing[2]))  # f1: {}, prec: {}, recall: {}, f1, prec, recall
 
-    #dot_ct_file = open('results/dot_ct_file.txt','w')
-    nt_exact_p,nt_exact_r,nt_exact_f1 = zip(*result_no_train)
-    #pdb.set_trace()
-    print('Average testing F1 score with pure post-processing: ', np.average(nt_exact_f1))
-    print('Average testing precision with pure post-processing: ', np.average(nt_exact_p))
-    print('Average testing recall with pure post-processing: ', np.average(nt_exact_r))
+
 
     #with open('/data2/darren/experiment/ufold/results/sample_result.pickle','wb') as f:
     #    pickle.dump(result_dict,f)
@@ -157,38 +95,20 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     config_file = args.config
-    test_file = args.test_files
-    test_file = r"random/pickle/N100_n200_train"
+    #test_file = args.test_files
+    test_file = r"random/length_test/N100_n100_test" # random/length_test/N100_n100_test
 
     config = process_config(config_file)
     print('Here is the configuration of this run: ')
     print(config)
 
-    if test_file not in ['TS1','TS2','TS3']:
-        MODEL_SAVED = 'models/ufold_train.pt'
-    else:
-        MODEL_SAVED = 'models/ufold_train_pdbfinetune.pt'
-    #MODEL_SAVED = "ufold_training/og/ufold_train_9.pt"
-    MODEL_SAVED = "ufold_training/13_12_2022/14_26_0.pt"
-    # os.environ["CUDA_VISIBLE_DEVICES"]= config.gpu
-    #MODEL_SAVED = 'ufold_training/11_12_2022/19_13_best_model_loss.pt'
+    MODEL_SAVED = f"ufold_training/23_12_2022/12_49_0.pt" #20_12_2022/15_17_0.pt
 
-    #MODEL_SAVED = 'models/ufold_train_pdbfinetune.pt'
-    #d (u_net_d) only for saving it in the right way (line 181)
-    d = config.u_net_d
-    BATCH_SIZE = config.batch_size_stage_1
+    # if test_file not in ['TS1', 'TS2', 'TS3']:
+    #     MODEL_SAVED = 'models/ufold_train.pt'
+    # else:
+    #     MODEL_SAVED = 'models/ufold_train_pdbfinetune.pt'
 
-    #still don't know what out step is
-    OUT_STEP = config.OUT_STEP
-    LOAD_MODEL = config.LOAD_MODEL
-
-    #data_type and model_type only for saving it in the right way (line 181)
-    data_type = config.data_type
-    model_type = config.model_type
-    #model_path = r'/ufold_training/10_12_2022/17_03_best_model_loss.pt'.format(model_type, data_type,d)
-    epoches_first = config.epoches_first
-    
-    
     # if gpu is to be used
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
@@ -228,6 +148,7 @@ def main():
     
     #pdb.set_trace()
     print('==========Start Loading==========')
+    print("Loaded Model:", MODEL_SAVED)
     contact_net.load_state_dict(torch.load(MODEL_SAVED, map_location=device))
     #contact_net.load_state_dict(torch.load(MODEL_SAVED, map_location='cpu'))
     print('==========Finish Loading==========')
@@ -248,3 +169,6 @@ if __name__ == '__main__':
 
 
 
+# Average testing F1 score with pure post-processing:  0.4097142
+# Average testing precision with pure post-processing:  0.5006259
+# Average testing recall with pure post-processing:  0.35211697

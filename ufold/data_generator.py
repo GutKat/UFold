@@ -10,7 +10,8 @@ from random import shuffle
 import torch
 from itertools import permutations, product
 import pdb
-
+import warnings
+warnings.simplefilter(action='ignore', category=np.VisibleDeprecationWarning)
 import math
 
 perm = list(product(np.arange(4), np.arange(4)))
