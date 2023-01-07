@@ -66,19 +66,13 @@ def get_ct_dict_fast(predict_matrix,batch_num,ct_dict,dot_file_dict,seq_embeddin
 
 
 def model_eval_all_test(contact_net,test_generator):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    contact_net.train()
-    pos_weight = torch.Tensor([300]).to(device)
-    criterion_bce_weighted = torch.nn.BCEWithLogitsLoss(
-        pos_weight = pos_weight)
-    result_postprocessed = model_eval_all_test_no_postprocessing(contact_net, test_generator)
-    result_no_postprocessing = model_eval_all_test_postprocessing(contact_net, test_generator)
+    result_no_postprocessing = model_eval_all_test_no_postprocessing(contact_net, test_generator)
+    result_postprocessed = model_eval_all_test_postprocessing(contact_net, test_generator)
     mcc_no_postprocess = mcc_model(contact_net, test_generator)
     mcc_postprocessed = mcc_model_postprocessed(contact_net, test_generator)
     #print(np.mean(run_time))
-    print("MCC no postprocess: {:1.2f}, MCC postprocessed: {:1.2f}".format(mcc_no_postprocess, mcc_postprocessed))
-    print('Postprocessed: f1: {:1.2f}, prec: {:1.2f}, recall: {:1.2f}'.format(result_postprocessed[0], result_postprocessed[1], result_postprocessed[2]))  # f1: {}, prec: {}, recall: {}, f1, prec, recall
-    print('No Postprocessing: f1: {:.2f}, prec: {:.2f}, recall: {:.2f}'.format(result_no_postprocessing[0], result_no_postprocessing[1], result_no_postprocessing[2]))  # f1: {}, prec: {}, recall: {}, f1, prec, recall
+    print('No Postprocessing: MCC: {:1.2f}, f1: {:.2f}, prec: {:.2f}, recall: {:.2f}'.format(mcc_no_postprocess, result_no_postprocessing[0], result_no_postprocessing[1], result_no_postprocessing[2]))  # f1: {}, prec: {}, recall: {}, f1, prec, recall
+    print('Postprocessed: MCC: {:1.2f}, f1: {:1.2f}, prec: {:1.2f}, recall: {:1.2f}'.format(mcc_postprocessed,result_postprocessed[0], result_postprocessed[1], result_postprocessed[2]))  # f1: {}, prec: {}, recall: {}, f1, prec, recall
 
 
 
@@ -96,13 +90,14 @@ def main():
 
     config_file = args.config
     #test_file = args.test_files
-    test_file = r"random/length_test/N100_n100_test" # random/length_test/N100_n100_test
+    test_file = r"rnadeep/bpRNAinv120_valid_small" # random/length_test/N100_n100_test
 
     config = process_config(config_file)
     print('Here is the configuration of this run: ')
     print(config)
 
-    MODEL_SAVED = f"ufold_training/23_12_2022/12_49_0.pt" #20_12_2022/15_17_0.pt
+    #MODEL_SAVED = "ufold_training/04_01_2023/11_38_1.pt"
+    MODEL_SAVED = "ufold_training/06_01_2023/12_11_0.pt" #20_12_2022/15_17_0.pt
 
     # if test_file not in ['TS1', 'TS2', 'TS3']:
     #     MODEL_SAVED = 'models/ufold_train.pt'

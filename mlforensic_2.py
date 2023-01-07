@@ -11,6 +11,8 @@ import collections
 import re
 from itertools import permutations, product
 import warnings
+from tqdm import tqdm
+import csv
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter(action='ignore', category=np.VisibleDeprecationWarning)
@@ -104,15 +106,6 @@ def canonical_non_canonical(pairs, seq):
     return pairs_sum, canonical_pairs, non_canonical_pairs
 
 
-def length_pairs(matrices, xlim=[0, 100], ylim=[0, 100]):
-    results = []
-    for matrix in matrices:
-        results.append([int(np.sum(matrix) / 2), matrix.shape[0]])
-    results = np.array(results)
-    plt.scatter(results[:, 1], results[:, 0])
-    plt.xlim(xlim[0], xlim[1])
-    plt.ylim(ylim[0], ylim[1])
-    plt.show()
 
 
 char_dict = {
@@ -148,7 +141,34 @@ def looptypes(seqs, structs):
               '#H': 0,  # hairpin
               '#I': 0,  # interior
               '#M': 0}  # multi
+    not_correct = 0
+    correct = 0
     for (seq, ss) in zip(seqs, structs):
+        error = False
+        if ss.count("(") != ss.count(")"):
+            not_correct += 1
+            continue
+
+        stack = []
+        for i in list(ss):
+            if i == "(":
+                stack.append(i)
+            elif i == ")":
+                try:
+                    stack.pop()
+                except IndexError:
+                    not_correct += 1
+                    error = True
+                    break
+                    #raise Exception("Too many closing brackets in secondary structure")
+        if error == True:
+            continue
+        if stack != []:
+            not_correct += 1
+            continue
+            #raise Exception("Too many opening brackets in secondary structure")
+
+        correct += 1
         assert len(seq) == len(ss)
         # Counting paired vs unpaired is easy ...
         S = len([n for n in ss if n != '.'])
@@ -168,10 +188,80 @@ def looptypes(seqs, structs):
                 counts[f'#{x[0]}'] += 1
                 lcheck += int(x[1:])
         assert scheck == S and lcheck == L
-    stats = {t: c / len(seqs) for t, c in stats.items()}
-    counts = {t: c / len(seqs) for t, c in counts.items()}
+    stats = {t: c / correct for t, c in stats.items()}
+    counts = {t: c / correct for t, c in counts.items()}
     assert np.isclose(sum(stats.values()), 1.)
-    return stats, counts
+    return stats, counts,correct, not_correct
+
+
+def correct_ss(prediction_file):
+    df = pd.read_csv(prediction_file)
+    seqs = df["Seq"].tolist()
+    structs_nopp = df["Pred structure no pp"].tolist()
+    structs_pp = df["Pred structure pp"].tolist()
+    not_correct_nopp = 0
+    correct_nopp = 0
+    not_correct_pp = 0
+    correct_pp = 0
+    for (seq, ss) in zip(seqs, structs_nopp):
+        error = False
+        if ss.count("(") != ss.count(")"):
+            not_correct_nopp += 1
+            continue
+
+        stack = []
+        for i in list(ss):
+            if i == "(":
+                stack.append(i)
+            elif i == ")":
+                try:
+                    stack.pop()
+                except IndexError:
+                    not_correct_nopp += 1
+                    error = True
+                    break
+                    #raise Exception("Too many closing brackets in secondary structure")
+        if error == True:
+            continue
+        if stack != []:
+            not_correct_nopp += 1
+            continue
+            #raise Exception("Too many opening brackets in secondary structure")
+
+        correct_nopp += 1
+
+    for (seq, ss) in zip(seqs, structs_pp):
+        error = False
+        if ss.count("(") != ss.count(")"):
+            not_correct_pp += 1
+            continue
+
+        stack = []
+        for i in list(ss):
+            if i == "(":
+                stack.append(i)
+            elif i == ")":
+                try:
+                    stack.pop()
+                except IndexError:
+                    not_correct_pp += 1
+                    error = True
+                    break
+                    #raise Exception("Too many closing brackets in secondary structure")
+        if error == True:
+            continue
+        if stack != []:
+            not_correct_pp += 1
+            continue
+            #raise Exception("Too many opening brackets in secondary structure")
+
+        correct_pp += 1
+    print("no pp")
+    print(f"correct: {correct_nopp}, not correct {not_correct_nopp}")
+    print("with pp")
+    print(f"correct: {correct_pp}, not correct {not_correct_pp}")
+    return correct_nopp, not_correct_nopp, correct_pp, not_correct_pp
+
 
 
 def get_data(filename):
@@ -277,7 +367,7 @@ def seq2dot(seq):
     return dot_file
 
 
-def get_ct_dict_fast(predict_matrix, batch_num, seq_embedding, seq_name):
+def get_ct_dict_fast(predict_matrix, seq_embedding):
     seq_tmp = torch.mul(predict_matrix.cpu().argmax(axis=1),
                         predict_matrix.cpu().sum(axis=1).clamp_max(1)).numpy().astype(int)
     seq_tmpp = np.copy(seq_tmp)
@@ -321,111 +411,215 @@ def contact2ct(contact, seq_len):
     sec_struc = "".join(sec_struc)
     return pairs, sec_struc
 
-def main():
-    torch.multiprocessing.set_sharing_strategy('file_system')
+
+def length_pairs(matrices, xlim=[0, 100], ylim=[0, 100]):
+    results = []
+    for matrix in matrices:
+        results.append([int(np.sum(matrix) / 2), matrix.shape[0]])
+    results = np.array(results)
+    plt.scatter(results[:, 1], results[:, 0])
+    plt.xlim(xlim[0], xlim[1])
+    plt.ylim(ylim[0], ylim[1])
+    plt.show()
+
+
+def get_prediction_file(model, generator, prediction_file):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    test_files = "analysis/random/N100_n100_test"  # random/length_test/N100_n100_test
-    MODEL_SAVED = f"ufold_training/23_12_2022/12_49_0.pt"  # 20_12_2022/15_17_0.pt
-    contact_net = FCNNet(img_ch=17)
-    contact_net.load_state_dict(torch.load(MODEL_SAVED, map_location=device))
-    contact_net.to(device)
-    contact_net.train()
-    test_data = RNASSDataGenerator('data/', test_files + '.cPickle')
-    params = {'batch_size': 1,
-              'shuffle': False,
-              'num_workers': 6,
-              'drop_last': True}
-    test_set = Dataset_FCN(test_data)
-    test_generator = data.DataLoader(test_set, **params)
+    model.to(device)
+    model.train()
+    with open(prediction_file, "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Name", "Seq", "True structure", "True Pairs", "Pred structure no pp", "Pred pairs no pp", "Pred structure pp", "Pred pairs pp"])
+        for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in tqdm(generator):
+            seq = utils.encoding2seq(seq_ori[0].detach().numpy())[:seq_lens[0]]
+            true_pairs, true_ss = contact2ct(contacts[0], seq_lens[0])
 
-    pairs_preds = []
-    pairs_truths = []
-    all_true_pred_no_pp = {}
-    all_true_pred_pp = {}
-    n = 1
-    for contacts, seq_embeddings, matrix_reps, seq_lens, seq_ori, seq_name, nc_map, l_len in test_generator:
-        seq = utils.encoding2seq(seq_ori[0].detach().numpy())[:seq_lens[0]]
-        true_pairs, true_ss = contact2ct(contacts[0], seq_lens[0])
+            seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
+            pred_contacts = model(seq_embedding_batch)
+            map_no_train = (pred_contacts > 0.5).float()
+            map_no_train = map_no_train[0][:seq_lens[0], :seq_lens[0]]
+            pred_pairs_no_pp, pred_ss_no_pp = get_ct_dict_fast(map_no_train,  seq_ori.cpu().squeeze())
+            pred_ss_no_pp = pred_ss_no_pp.replace("_", ".")
 
-        seq_embedding_batch = torch.Tensor(seq_embeddings.float()).to(device)
-        pred_contacts = contact_net(seq_embedding_batch)
-        map_no_train = (pred_contacts > 0.5).float()
-        map_no_train = map_no_train[0][:seq_lens[0], :seq_lens[0]]
-        pred_pairs, pred_ss = get_ct_dict_fast(map_no_train, n, seq_ori.cpu().squeeze(), seq_name[0])
-        pred_ss = pred_ss.replace("_", ".")
-        pred_no_pp = {"pairs":pred_pairs, "ss": pred_ss}
-        true = {"pairs":true_pairs, "ss": true_ss}
-        all_true_pred_no_pp[seq_name[0]] = {"pred": pred_no_pp, "true": true, "seq":seq}
+            u_no_train = postprocess(pred_contacts,seq_ori, 0.01, 0.1, 100, 1.6, True, 1.5)
+            map_no_train = (u_no_train > 0.5).float()
+            map_no_train = map_no_train[0][:seq_lens[0], :seq_lens[0]]
+            pred_pairs_pp, pred_ss_pp = get_ct_dict_fast(map_no_train, seq_ori.cpu().squeeze())
+            pred_ss_pp = pred_ss_pp.replace("_", ".")
 
-        u_no_train = postprocess(pred_contacts,seq_ori, 0.01, 0.1, 100, 1.6, True, 1.5)
-        map_no_train = (u_no_train > 0.5).float()
-        map_no_train = map_no_train[0][:seq_lens[0], :seq_lens[0]]
-        pred_pairs, pred_ss = get_ct_dict_fast(map_no_train, n, seq_ori.cpu().squeeze(), seq_name[0])
 
-        pred_ss = pred_ss.replace("_", ".")
-        pred_pp = {"pairs": pred_pairs, "ss": pred_ss}
-        all_true_pred_pp[seq_name[0]] = {"pred": pred_pp, "true": true, "seq":seq}
-        n += 1
+            writer.writerow([seq_name[0], seq, true_ss, true_pairs, pred_ss_no_pp, pred_pairs_no_pp,
+                             pred_ss_pp, pred_pairs_pp])
+    print("prediction file created!")
+    return
+
+
+def string2list(string):
+    if string == "[]":
+        return list()
+    string = string.replace("[", "")
+    string = string.replace("]", "")
+    string = string.replace(" ", "")
+    l = string.split("),(")
+    for i in range(len(l)):
+        elem = l[i].replace("(", "").replace(")", "")
+        l[i] = (int(elem.split(",")[0]), int(elem.split(",")[1]))
+    return l
+
+
+
+def bp_canonical_noncanonical_stat(prediction_file):
+    df = pd.read_csv(prediction_file) # , dtype={'True Pairs': list()}
 
     bp_rel_true = []
     bp_rel_pred = []
+    canon_rel_true = []
+    canon_rel_pred = []
+    noncanon_rel_true = []
+    noncanon_rel_pred = []
+
+    bp_diff = []
+    canonical_bp_diff = []
+    non_canonical_bp_diff = []
+    n = len(df)
+    for row in df.iterrows():
+        seq = row[1]["Seq"]
+        pred_pairs = string2list(row[1]['Pred pairs no pp'])
+        true_pairs = string2list(row[1]['True Pairs'])
+        k = len(seq)
+        pairs_pred = canonical_non_canonical(pred_pairs, seq)
+        pairs_truth = canonical_non_canonical(true_pairs, seq)
+
+        bp_rel_true.append(pairs_truth[0]/k)
+        bp_rel_pred.append(pairs_pred[0]/k)
+        canon_rel_true.append(pairs_truth[1]/k)
+        canon_rel_pred.append(pairs_pred[1]/k)
+        noncanon_rel_true.append(pairs_truth[2]/k)
+        noncanon_rel_pred.append(pairs_pred[2]/k)
+
+
+        bp_diff.append((pairs_truth[0] - pairs_pred[0])/k)
+        canonical_bp_diff.append((pairs_truth[1] - pairs_pred[1])/k)
+        non_canonical_bp_diff.append((pairs_truth[2] - pairs_pred[2])/k)
+    print("without postprocessing")
+    print("relative average")
+    print(f"TRUE unpaired: {1-(sum(bp_rel_true)/n):1.2f}, paired: {sum(bp_rel_true)/n:1.2f}, can: {sum(canon_rel_true)/n:1.2f}, noncan: {sum(noncanon_rel_true)/n:1.2f}")
+    print(f"PRED unpaired: {1-(sum(bp_rel_pred)/n):1.2f}, paired: {sum(bp_rel_pred)/n:1.2f}, can: {sum(canon_rel_pred)/n:1.2f}, noncan: {sum(noncanon_rel_pred)/n:1.2f}")
+
+    print("difference")
+    print(f"paired: {sum(bp_diff)/n:1.2f}, can: {sum(canonical_bp_diff)/n:1.2f}, noncan: {sum(non_canonical_bp_diff)/n:1.2f}")
+
+
+    bp_rel_pred = []
+    canon_rel_pred = []
+    noncanon_rel_pred = []
     bp_diff = []
     canonical_bp_diff = []
     non_canonical_bp_diff = []
 
-    true_bp = 0
-    pred_bp = 0
+    for row in df.iterrows():
+        seq = row[1]["Seq"]
+        k = len(seq)
+        pred_pairs = string2list(row[1]['Pred pairs pp'])
+        true_pairs = string2list(row[1]['True Pairs'])
+        pairs_pred = canonical_non_canonical(pred_pairs, seq)
+        pairs_truth = canonical_non_canonical(true_pairs, seq)
+
+        bp_rel_pred.append(pairs_pred[0]/k)
+        canon_rel_pred.append(pairs_pred[1]/k)
+        noncanon_rel_pred.append(pairs_pred[2]/k)
+
+        bp_diff.append((pairs_truth[0] - pairs_pred[0])/k)
+        canonical_bp_diff.append((pairs_truth[1] - pairs_pred[1])/k)
+        non_canonical_bp_diff.append((pairs_truth[2] - pairs_pred[2])/k)
+
+
+    print("with postprocessing")
+    print("relative average")
+    print(f"TRUE unpaired: {1-(sum(bp_rel_true)/n):1.2f}, paired: {sum(bp_rel_true)/n:1.2f}, can: {sum(canon_rel_true)/n:1.2f}, noncan: {sum(noncanon_rel_true)/n:1.2f}")
+    print(f"PRED unpaired: {1-(sum(bp_rel_pred)/n):1.2f}, paired: {sum(bp_rel_pred)/n:1.2f}, can: {sum(canon_rel_pred)/n:1.2f}, noncan: {sum(noncanon_rel_pred)/n:1.2f}")
+
+    print("difference")
+    print(f"paired: {sum(bp_diff)/n:1.2f}, can: {sum(canonical_bp_diff)/n:1.2f}, noncan: {sum(non_canonical_bp_diff)/n:1.2f}")
+    return None
+
+
+def length_stat(all_true_pred_no_pp, all_true_pred_pp):
+    true_result = []
+    no_pp = []
     for i in all_true_pred_no_pp:
         seq = all_true_pred_no_pp[i]["seq"]
         pred_pairs = all_true_pred_no_pp[i]["pred"]["pairs"]
         true_pairs = all_true_pred_no_pp[i]["true"]["pairs"]
+        pairs_pred = canonical_non_canonical(pred_pairs, seq)[0]
+        pairs_truth = canonical_non_canonical(true_pairs, seq)[0]
+        true_result.append([pairs_truth, len(seq)])
+        no_pp.append([pairs_pred, len(seq)])
 
-        pairs_pred = canonical_non_canonical(pred_pairs, seq)
-        pairs_truth = canonical_non_canonical(true_pairs, seq)
-
-        pred_bp += pairs_pred[0]
-        true_bp += pairs_truth[0]
-        bp_rel_true.append(pairs_truth[0]/len(seq))
-        bp_rel_pred.append(pairs_pred[0]/len(seq))
-        bp_diff.append(pairs_truth[0] - pairs_pred[0])
-        canonical_bp_diff.append(pairs_truth[1] - pairs_pred[1])
-        non_canonical_bp_diff.append(pairs_truth[2] - pairs_pred[2])
-    print("without postprocessing")
-    print(f"average true bp: {sum(bp_rel_true)/n:1.2f}")
-    print(f"average pred bp: {sum(bp_rel_pred)/n:1.2f}")
-    print(f"average total true bp: {true_bp / n:1.2f}")
-    print(f"average total pred bp: {pred_bp / n:1.2f}")
-    print(f"average bp diff: {sum(bp_diff)/n:1.2f}")
-    print(f"average bp diff: {sum(canonical_bp_diff)/n:1.2f}")
-    print(f"average bp diff: {sum(non_canonical_bp_diff)/n:1.2f}")
-
-    bp_rel_pred = []
-    bp_diff = []
-    canonical_bp_diff = []
-    non_canonical_bp_diff = []
-    pred_bp = 0
+    pp = []
     for i in all_true_pred_pp:
         seq = all_true_pred_pp[i]["seq"]
         pred_pairs = all_true_pred_pp[i]["pred"]["pairs"]
-        true_pairs = all_true_pred_pp[i]["true"]["pairs"]
-        pairs_pred = canonical_non_canonical(pred_pairs, seq)
-        pairs_truth = canonical_non_canonical(true_pairs, seq)
-        pred_bp += pairs_pred[0]
+        pairs_pred = canonical_non_canonical(pred_pairs, seq)[0]
+        pp.append([pairs_pred, len(seq)])
+    no_pp = np.array(no_pp)
+    pp = np.array(pp)
+    true_result = np.array(true_result)
 
-        bp_rel_pred.append(pairs_pred[0]/len(seq))
-        bp_diff.append(pairs_truth[0] - pairs_pred[0])
-        canonical_bp_diff.append(pairs_truth[1] - pairs_pred[1])
-        non_canonical_bp_diff.append(pairs_truth[2] - pairs_pred[2])
+    # plot scatterplot of no postprocessed data
+    plt.scatter(no_pp[:, 1], no_pp[:, 0])
+    # add trendline
+    p = np.poly1d(np.polyfit(no_pp[:, 1], no_pp[:, 0], 1))
+    plt.plot(no_pp[:, 1], p(no_pp[:, 1]), "--")
+
+    # plot scatterplot of postprocessed data
+    plt.scatter(pp[:, 1], pp[:, 0])
+    # add trendline
+    p = np.poly1d(np.polyfit(pp[:, 1], pp[:, 0], 1))
+    plt.plot(pp[:, 1], p(pp[:, 1]), "--")
+
+    # plot scatterplot of real data
+    plt.scatter(true_result[:, 1], true_result[:, 0])
+    # add trendline
+    p = np.poly1d(np.polyfit(true_result[:, 1], true_result[:, 0], 1))
+    plt.plot(true_result[:, 1], p(true_result[:, 1]), "--")
+
+    plt.legend()
+    plt.xlabel("length")
+    plt.ylabel("number of basepairs")
+    plt.xlim(0, 100)
+    plt.ylim(-10, 100)
+    plt.legend(["no postprocessing", "trendline no postprocessing","with postprocessing", "trendline with postprocessing", "true values","trendline true values"])
+    plt.show()
 
 
-    print("withpostprocessing")
-    print(f"average rel true bp: {sum(bp_rel_true)/ n:1.2f}")
-    print(f"average rel pred bp: {sum(bp_rel_pred) / n:1.2f}")
-    print(f"average total true bp: {true_bp / n:1.2f}")
-    print(f"average total pred bp: {pred_bp / n:1.2f}")
-    print(f"average bp diff: {sum(bp_diff)/n:1.2f}")
-    print(f"average bp diff: {sum(canonical_bp_diff)/n:1.2f}")
-    print(f"average bp diff: {sum(non_canonical_bp_diff)/n:1.2f}")
+def main():
+    torch.multiprocessing.set_sharing_strategy('file_system')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    test_files = "rnadeep/bpRNAinv120_valid"  # random/length_test/N100_n100_test
+    MODEL_SAVED = f"ufold_training/06_01_2023/12_11_2.pt"  # 20_12_2022/15_17_0.pt
+    prediction_file = "data/analysis/predictions_validation.csv"
+    print(f"Model: {MODEL_SAVED} loaded")
+    print(f"Testing: {test_files}")
+    contact_net = FCNNet(img_ch=17)
+    contact_net.load_state_dict(torch.load(MODEL_SAVED, map_location=device))
+    test_data = RNASSDataGenerator('data/', test_files + '.cPickle')
+    params = {'batch_size': 1,
+              'shuffle': False,
+              'num_workers': 1,
+              'drop_last': False}
+    test_set = Dataset_FCN(test_data)
+    test_generator = data.DataLoader(test_set, **params)
+    print("data loaded")
+    get_prediction_file(contact_net, test_generator, prediction_file)
+    print("prediction done")
+    #bp_canonical_noncanonical_stat(prediction_file)
+    #length_stat(all_true_pred_no_pp, all_true_pred_pp)
+
+
+    #correct_ss(prediction_file)
+
+
 
 
 

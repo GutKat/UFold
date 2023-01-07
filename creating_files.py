@@ -4,7 +4,9 @@ from ufold import utils
 from ufold import random_generator, postprocess, metrics
 import os
 from tqdm import tqdm
-
+import collections
+import re
+import pandas as pd
 
 class random_input():
     def __init__(self, length):
@@ -103,6 +105,7 @@ def create_bbseq_file_from_fa(seq, ss, filename):
         paired[le] = ri + 1
         paired[ri] = le + 1
     bbseq = {"seq": seq, "pair": paired}
+
     with open(filename, "w") as f:
         seq = bbseq["seq"]
         pairs = bbseq["pair"]
@@ -120,18 +123,65 @@ def create_files_from_fa(filename, folderpath):
     with open(filename, "r") as f:
         data = f.readlines()
     pattern = ">(.*) en"
-    for i in range(0, len(data), 3):
+
+    if not os.path.exists(folderpath):
+        os.makedirs(folderpath)
+
+    for i in tqdm(range(0, len(data), 3)):
         name = re.search(pattern, data[i])[1]
         seq = data[i + 1]
         seq = seq.replace("\n", "")
         ss = data[i + 2]
-        ss = seq.replace("\n", "")
+        ss = ss.replace("\n", "")
         file_name = f"{folderpath}/{name}.txt"
         create_bbseq_file_from_fa(seq, ss, file_name)
 
-import re
+
+def pickle_to_fa(filename, fa_file):
+    RNA_SS_data = collections.namedtuple('RNA_SS_data', 'seq ss_label length name pairs')
+    data = pd.read_pickle(filename)
+    names = []
+    sequences = []
+    structures = []
+    for obj in tqdm(data):
+        seq = obj[0]
+        length = obj[2]
+        name = obj[3]
+        pairs = obj[4]
+        seq = utils.encoding2seq(seq)[0:length]
+        ss = np.array(list(length * "."))
+        for pair in pairs:
+            if pair[0] < pair[1]:
+                ss[pair[0]] = "("
+                ss[pair[1]] = ")"
+            else:
+                ss[pair[1]] = "("
+                ss[pair[0]] = ")"
+        ss = "".join(ss)
+        if "." in seq:
+            continue
+        names.append(name)
+        sequences.append(seq)
+        structures.append(ss)
+
+    with open(fa_file, "w") as f:
+        for i in range(len(names)):
+            if i != len(names):
+                f.write(f">{names[i]}\n")
+                f.write(f"{sequences[i]}\n")
+                f.write(f"{structures[i]}\n")
+            else:
+                f.write(f">{names[i]}\n")
+                f.write(f"{sequences[i]}\n")
+                f.write(f"{structures[i]}")
+
 if __name__ == '__main__':
-    pass
+    RNA_SS_data = collections.namedtuple('RNA_SS_data', 'seq ss_label length name pairs')
+    filepath = "data/bpnew.cPickle"
+    fa_file = "data/bpnew.fa"
+    #pickle_to_fa(filepath, fa_file)
+    #filename = "data/rnadeep/inv_120_10000.fa.txt"
+    #create_files_from_fa(filename, "data/rnadeep/inv_120_10000")
     # N_seq = 5000
     # n_seq = 100
     # #seeds = [1, 2, 3]

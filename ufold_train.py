@@ -97,25 +97,23 @@ def train(contact_net, train_generator, validation_generator, test_generator, ep
             u_optimizer.step()
             steps_done = steps_done+1
 
-            if steps_done%5000 == 0:
-                loss_val = 0
-                rounds = 0
-                for contact, seq_embedding, matrix_rep, data_len, seq_len, data_name, data_nc, length in validation_generator:
-                    contact = torch.Tensor(contact.float()).to(device)
-                    seq_embedding_batch = torch.Tensor(seq_embedding.float()).to(device)
-                    pred_contact = contact_net(seq_embedding_batch)
-                    contact_mask = torch.zeros_like(pred_contact)
-                    contact_mask[:, :length, :length] = 1
-                    loss_val += criterion_bce_weighted(pred_contacts * contact_masks, contact)
-                    rounds += 1
-                loss_val = loss_val/rounds
-                if write_tensorboard:
-                    writer.add_scalar(f"Loss val/steps", loss_val, steps_done)
-                    #(f'loss/check_info', {
-    # 'score': score[iteration],
-    # 'score_nf': score_nf[iteration],
-                    # writer.add_scalar(f"MCC/steps", mcc_u, steps_done)
-                print('Validation log: step: {}, loss: {}'.format(steps_done - 1, loss_val))
+            # if steps_done%1 == 0:
+            #     loss_val = 0
+            #     rounds = 0
+            #     for contact, seq_embedding, matrix_rep, data_len, seq_len, data_name, data_nc, length in validation_generator:
+            #         contact = torch.Tensor(contact.float()).to(device)
+            #         seq_embedding_batch = torch.Tensor(seq_embedding.float()).to(device)
+            #         pred_contact = contact_net(seq_embedding_batch)
+            #         contact_mask = torch.zeros_like(pred_contact)
+            #         print("contact_mask", contact_mask.shape)
+            #         print("pred_contact", pred_contact.shape)
+            #         print("contact", contact.shape)
+            #         contact_mask[:, :length, :length] = 1
+            #         loss_val += criterion_bce_weighted(pred_contacts * contact_masks, contact)
+            #         rounds += 1
+            #     loss_val = loss_val/rounds
+            #     if write_tensorboard:
+            #         writer.add_scalar(f"Loss val/steps", loss_val, steps_done)
 
         # calculate accuracy, etc. for each epoch
         # f1, prec, recall = metrics.model_eval_all_test(contact_net, train_generator)
@@ -126,8 +124,8 @@ def train(contact_net, train_generator, validation_generator, test_generator, ep
         print('Training log: epoch: {}, step: {}, loss: {}'.format(
             epoch, steps_done - 1, loss_u))
 
-        print('Validation log: epoch: {}, step: {}, loss: {}'.format(
-            epoch, steps_done - 1, loss_val))
+        # print('Validation log: epoch: {}, step: {}, loss: {}'.format(
+        #     epoch, steps_done - 1, loss_val))
         # f1: {}, prec: {}, recall: {}, f1, prec, recall
         # print('Training log: epoch: {}, step: {}, loss: {}, mcc: {},  f1: {}, prec: {}, recall: {}'.format(
         #             epoch, steps_done-1, loss_u, mcc_train,  f1, prec, recall))
@@ -136,7 +134,7 @@ def train(contact_net, train_generator, validation_generator, test_generator, ep
         if write_tensorboard:
             #print to tensorboard in each epoch
             writer.add_scalar("Loss train/epoch", loss_u, epoch)
-            writer.add_scalar("Loss val/epoch", loss_val, epoch)
+           # writer.add_scalar("Loss val/epoch", loss_val, epoch)
             writer.flush()
 
         #save to folder
@@ -191,9 +189,9 @@ def main():
     epoches_first = config.epoches_first
     train_files = args.train_files
     #small_inv_120_100.cPickle
-    validation_file = r"rnadeep/small_inv_120_100"
+    validation_file = r"rnadeep/bpRNAinv120_valid_small"
     #small_bpRNAinver120.cPickle
-    test_file = r"rnadeep/small_bpRNAinver120"
+    test_file = r"rnadeep/bpRNAinv120_valid_small"
 
     # if gpu is to be used
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -267,7 +265,7 @@ if __name__ == '__main__':
     write_tensorboard = True
     main()
 
-#torch.save(contact_net.module.state_dict(), model_path + 'unet_final.pt')
+# torch.save(contact_net.module.state_dict(), model_path + 'unet_final.pt')
 # sys.exit()
 
 
