@@ -4,7 +4,7 @@
 	"BATCH_SIZE": 10,
 	"batch_size_stage_1": 5,
 	"OUT_STEP": 50,
-	"LOAD_MODEL": true,
+	"LOAD_MODEL": false,
 	"SAVED_MODEL": "ufold_training/19_12_2022/18_54_0.pt",
 	"rho_per_position": "matrix",
 	"data_type": "rnastralign_all_600",
@@ -12,5 +12,5 @@
 	"epoches_first": 1,
 	"step_gamma": 1,
 	"k": 1,
-	"lr": 1e-5
+	"lr": 1e-3
 }

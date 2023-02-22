@@ -19,6 +19,8 @@ from Network import U_Net as FCNNet
 from ufold.utils import *
 from ufold.config import process_config
 
+from ml_forensic import model_eval
+
 from ufold.data_generator import RNASSDataGenerator, Dataset
 from ufold.data_generator import Dataset_Cut_concat_new_merge_multi as Dataset_FCN_merge
 from ufold.data_generator import Dataset_Cut_concat_new_canonicle as Dataset_FCN
@@ -97,7 +99,7 @@ def train(contact_net, train_generator, validation_generator, test_generator, ep
             u_optimizer.step()
             steps_done = steps_done+1
 
-            # if steps_done%1 == 0:
+            # if steps_done%1000 == 0:
             #     loss_val = 0
             #     rounds = 0
             #     for contact, seq_embedding, matrix_rep, data_len, seq_len, data_name, data_nc, length in validation_generator:
@@ -144,17 +146,15 @@ def train(contact_net, train_generator, validation_generator, test_generator, ep
                 best_model = contact_net.state_dict()
             torch.save(contact_net.state_dict(),  f'ufold_training/{date_today}/{current_time}_{epoch}.pt')
 
+    not_processed, processed = model_eval(contact_net, test_generator)
+    print('No Postprocessing: MCC: {:1.2f}, f1: {:.2f}, prec: {:.2f}, recall: {:.2f}'.format(not_processed[0],
+                                                                                             not_processed[1],
+                                                                                             not_processed[2],
+                                                                                             not_processed[3]))
+    print('Postprocessed: MCC: {:1.2f}, f1: {:1.2f}, prec: {:1.2f}, recall: {:1.2f}'.format(processed[0], processed[1],
+                                                                                            processed[2], processed[3]))
 
-    #after training calculate accuracy for test set
-    result_no_postprocessing = metrics.model_eval_all_test_no_postprocessing(contact_net, test_generator)
-    result_postprocessed = metrics.model_eval_all_test_postprocessing(contact_net, test_generator)
-    mcc_no_postprocess = metrics.mcc_model(contact_net, test_generator)
-    mcc_postprocessed = metrics.mcc_model_postprocessed(contact_net, test_generator)
-    #print(np.mean(run_time))
-    print('No Postprocessing: MCC: {:1.2f}, f1: {:.2f}, prec: {:.2f}, recall: {:.2f}'.format(mcc_no_postprocess, result_no_postprocessing[0], result_no_postprocessing[1], result_no_postprocessing[2]))  # f1: {}, prec: {}, recall: {}, f1, prec, recall
-    print('Postprocessed: MCC: {:1.2f}, f1: {:1.2f}, prec: {:1.2f}, recall: {:1.2f}'.format(mcc_postprocessed, result_postprocessed[0], result_postprocessed[1], result_postprocessed[2]))  # f1: {}, prec: {}, recall: {}, f1, prec, recall
-
-    #test_generator
+    #save "best" model
     torch.save(best_model, f'ufold_training/{date_today}/{current_time}_best_model.pt')
     print("Training Done")
     print("-" * 100)

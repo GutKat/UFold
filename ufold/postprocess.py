@@ -161,3 +161,5 @@ def postprocess_new_nc(u, x, lr_min, lr_max, num_itr, rho=0.0, with_l1=False,s=m
     a = (a + torch.transpose(a, -1, -2)) / 2
     a = a * m
     return a
+
+#testing
