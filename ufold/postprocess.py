@@ -22,31 +22,6 @@ def constraint_matrix_batch(x):
     ug_gu = ug + torch.transpose(ug, -1, -2)
     return au_ua + cg_gc + ug_gu
 
-def constraint_matrix_batch_addnc(x):
-    base_a = x[:, :, 0]
-    base_u = x[:, :, 1]
-    base_c = x[:, :, 2]
-    base_g = x[:, :, 3]
-    batch = base_a.shape[0]
-    length = base_a.shape[1]
-    au = torch.matmul(base_a.view(batch, length, 1), base_u.view(batch, 1, length))
-    au_ua = au + torch.transpose(au, -1, -2)
-    cg = torch.matmul(base_c.view(batch, length, 1), base_g.view(batch, 1, length))
-    cg_gc = cg + torch.transpose(cg, -1, -2)
-    ug = torch.matmul(base_u.view(batch, length, 1), base_g.view(batch, 1, length))
-    ug_gu = ug + torch.transpose(ug, -1, -2)
-    ## add non-canonical pairs
-    ac = torch.matmul(base_a.view(batch, length, 1), base_c.view(batch, 1, length))
-    ac_ca = ac + torch.transpose(ac, -1, -2)
-    ag = torch.matmul(base_a.view(batch, length, 1), base_g.view(batch, 1, length))
-    ag_ga = ag + torch.transpose(ag, -1, -2)
-    uc = torch.matmul(base_u.view(batch, length, 1), base_c.view(batch, 1, length))
-    uc_cu = uc + torch.transpose(uc, -1, -2)
-    aa = torch.matmul(base_a.view(batch, length, 1), base_a.view(batch, 1, length))
-    uu = torch.matmul(base_u.view(batch, length, 1), base_u.view(batch, 1, length))
-    cc = torch.matmul(base_c.view(batch, length, 1), base_c.view(batch, 1, length))
-    gg = torch.matmul(base_g.view(batch, length, 1), base_g.view(batch, 1, length))
-    return au_ua + cg_gc + ug_gu + ac_ca + ag_ga + uc_cu + aa + uu + cc + gg
 
 def contact_a(a_hat, m):
     a = a_hat * a_hat
@@ -99,14 +74,6 @@ def postprocess_new(u, x, lr_min, lr_max, num_itr, rho=0.0, with_l1=False,s=math
         lmbd += lr_max * lmbd_grad
         lr_max = lr_max * 0.99
 
-        # print
-        # if t % 20 == 19:
-        #     n1 = torch.norm(lmbd_grad)
-        #     grad_a = (lmbd * soft_sign(torch.sum(contact_a(a_hat, m), dim=-1) - 1)).unsqueeze_(-1).expand(u.shape) - u / 2
-        #     grad = a_hat * m * (grad_a + torch.transpose(grad_a, -1, -2))
-        #     n2 = torch.norm(grad)
-        #     print([t, 'norms', n1, n2, aug_lagrangian(u, m, a_hat, lmbd), torch.sum(contact_a(a_hat, u))])
-
     a = a_hat * a_hat
     a = (a + torch.transpose(a, -1, -2)) / 2
     a = a * m
@@ -124,7 +91,6 @@ def postprocess_new_nc(u, x, lr_min, lr_max, num_itr, rho=0.0, with_l1=False,s=m
     :return:
     """
     m = constraint_matrix_batch_addnc(x).float()
-    #m = 1.0
     # u with threshold
     # equivalent to sigmoid(u) > 0.9
     # u = (u > math.log(9.0)).type(torch.FloatTensor) * u
@@ -149,17 +115,9 @@ def postprocess_new_nc(u, x, lr_min, lr_max, num_itr, rho=0.0, with_l1=False,s=m
         lmbd += lr_max * lmbd_grad
         lr_max = lr_max * 0.99
 
-        # print
-        # if t % 20 == 19:
-        #     n1 = torch.norm(lmbd_grad)
-        #     grad_a = (lmbd * soft_sign(torch.sum(contact_a(a_hat, m), dim=-1) - 1)).unsqueeze_(-1).expand(u.shape) - u / 2
-        #     grad = a_hat * m * (grad_a + torch.transpose(grad_a, -1, -2))
-        #     n2 = torch.norm(grad)
-        #     print([t, 'norms', n1, n2, aug_lagrangian(u, m, a_hat, lmbd), torch.sum(contact_a(a_hat, u))])
 
     a = a_hat * a_hat
     a = (a + torch.transpose(a, -1, -2)) / 2
     a = a * m
     return a
 
-#testing

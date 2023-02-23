@@ -225,10 +225,9 @@ def length_analysis(folder, n_lengths, stem_file_name = "", save = False):
         bp_count_pp.append(bp_counts/len(seqs))     #get average # of bp pairs for length n postprocessed
 
 
-    print(f"before postprocessing there are in {sum(ids_nopp)} self-loops in the {len(seqs)*len(n_lengths)} sequences")
-    print(f"after postprocessing there are in {sum(ids_pp)} self-loops in  the {len(seqs)*len(n_lengths)} sequences")
-    #plt.plot(n_lengths, bp_count_truth)
-    # (x**2) * 0.002532 - x*0.021662 - 2.797929
+    print(f"before postprocessing there are {sum(ids_nopp)} self-loops in the {len(seqs)*len(n_lengths)} sequences")
+    print(f"after postprocessing there are {sum(ids_pp)} self-loops in  the {len(seqs)*len(n_lengths)} sequences")
+
     x = np.array(n_lengths)
     RNADeep = (x**2) * 0.002532 - x*0.021662 - 2.797929
     plt.plot(n_lengths, RNADeep)
@@ -246,7 +245,7 @@ def length_analysis(folder, n_lengths, stem_file_name = "", save = False):
     # plt.plot(n_lengths, bp_count_no_pp)
     # plt.plot(n_lengths, bp_count_pp)
 
-    plt.legend(["RNA Deep", "before postprocessing", "after postprocessing"])
+    plt.legend(["RNA Deep", "UFold without postprocessing", "UFold with postprocessing"])
     plt.xlabel("sequence length")
     plt.ylabel("number of bp")
     plt.title("Number of bp vs. length")
@@ -468,13 +467,6 @@ def analysis(file_path):
            f"{bp_nnss[('G', 'U')]:>5.3f} "
            f"{bp_nnss[('U', 'G')]:>5.3f} "
            f"{nc_nnss:>12.10f} "))
-
-
-    # In case you care, look at the test structures vs predicted structures!
-    # for s, v, n in zip(seqs, vrna, nnss):
-    #     print(f'# {s}')
-    #     print(f'# {v} (test)')
-    #     print(f'# {n} (pred)')
 
 
 if __name__ == '__main__':

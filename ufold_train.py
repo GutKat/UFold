@@ -1,17 +1,10 @@
-import _pickle as pickle
-import sys
-import os
-
 import json
 from tqdm import tqdm
 from datetime import date, datetime
 
-import torch
 import torch.optim as optim
 from torch.utils import data
 from torch.utils.tensorboard import SummaryWriter
-import subprocess
-from sklearn.metrics import matthews_corrcoef
 
 # from FCN import FCNNet
 from Network import U_Net as FCNNet
@@ -19,15 +12,14 @@ from Network import U_Net as FCNNet
 from ufold.utils import *
 from ufold.config import process_config
 
-from ml_forensic import model_eval
+from ufold.ml_forensic import model_eval
 
-from ufold.data_generator import RNASSDataGenerator, Dataset
+from ufold.data_generator import RNASSDataGenerator
 from ufold.data_generator import Dataset_Cut_concat_new_merge_multi as Dataset_FCN_merge
 from ufold.data_generator import Dataset_Cut_concat_new_canonicle as Dataset_FCN
 import collections
 import os
 
-from ufold import metrics
 
 date_today = date.today().strftime("%d_%m_%Y")
 now = datetime.now()

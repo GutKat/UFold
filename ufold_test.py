@@ -5,10 +5,10 @@ from Network import U_Net as FCNNet
 from ufold.utils import *
 from ufold.config import process_config
 
-from ufold.data_generator import RNASSDataGenerator, Dataset
+from ufold.data_generator import RNASSDataGenerator
 from ufold.data_generator import Dataset_Cut_concat_new_canonicle as Dataset_FCN
 import collections
-from ml_forensic import model_eval
+from ufold.ml_forensic import model_eval
 
 args = get_args()
 
