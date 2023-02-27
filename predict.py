@@ -1,23 +1,21 @@
-import _pickle as pickle
-import sys
-import os
+'''
+Author: Katrin Gutenbrunner
+script to predict structures from randomly created sequence and store predictions in numpy files
+created files are used for the script ml_forensic.py
+'''
 
-import torch
-import torch.optim as optim
+
+from ufold_test import *
 from torch.utils import data
 from tqdm import tqdm
 # from FCN import FCNNet
 from Network import U_Net as FCNNet
 
 from ufold.utils import *
-from ufold.config import process_config
-import pdb
-import time
 from ufold.data_generator import RNASSDataGenerator, Dataset, RNASSDataGenerator_input
 from ufold.data_generator import Dataset_Cut_concat_new as Dataset_FCN
 import collections
 
-import subprocess
 
 args = get_args()
 if args.nc:
@@ -26,112 +24,18 @@ else:
     from ufold.postprocess import postprocess_new as postprocess
 
 
-def get_seq(contact):
-    seq = None
-    seq = torch.mul(contact.argmax(axis=1), contact.sum(axis=1).clamp_max(1))
-    seq[contact.sum(axis=1) == 0] = -1
-    return seq
-
-
-def seq2dot(seq):
-    '''function to convert the sequence to dot-bracket notation.
-    arguments:
-        seq:
-    return:
-        dot_file: in dot bracket notation'''
-    idx = np.arange(1, len(seq) + 1)
-    dot_file = np.array(['_'] * len(seq))
-    dot_file[seq > idx] = '('
-    dot_file[seq < idx] = ')'
-    dot_file[seq == 0] = '.'
-    dot_file = ''.join(dot_file)
-    return dot_file
-
-
-def get_ct_dict(predict_matrix, batch_num, ct_dict):
-    for i in range(0, predict_matrix.shape[1]):
-        for j in range(0, predict_matrix.shape[1]):
-            if predict_matrix[:, i, j] == 1:
-                if batch_num in ct_dict.keys():
-                    ct_dict[batch_num] = ct_dict[batch_num] + [(i, j)]
-                else:
-                    ct_dict[batch_num] = [(i, j)]
-    return ct_dict
-
-
-def get_ct_dict_fast(predict_matrix, batch_num, ct_dict, dot_file_dict, seq_embedding, seq_name):
-    seq_tmp = torch.mul(predict_matrix.cpu().argmax(axis=1),
-                        predict_matrix.cpu().sum(axis=1).clamp_max(1)).numpy().astype(int)
-    seq_tmpp = np.copy(seq_tmp)
-    seq_tmp[predict_matrix.cpu().sum(axis=1) == 0] = -1
-
-    dot_list = seq2dot((seq_tmp + 1).squeeze())
-    letter = 'AUCG'
-    seq_letter = ''.join([letter[item] for item in np.nonzero(seq_embedding)[:, 1]])
-
-    seq = ((seq_tmp + 1).squeeze(), torch.arange(predict_matrix.shape[-1]).numpy() + 1)
-    ct_dict[batch_num] = [(seq[0][i], seq[1][i]) for i in np.arange(len(seq[0])) if seq[0][i] != 0]
-    dot_file_dict[batch_num] = [(seq_name.replace('/', '_'), seq_letter, dot_list[:len(seq_letter)])]
-
-    ct_file_output(ct_dict[batch_num], seq_letter, seq_name, 'results/save_ct_file')
-    _, _, noncanonical_pairs = type_pairs(ct_dict[batch_num], seq_letter)
-    tertiary_bp = [list(x) for x in set(tuple(x) for x in noncanonical_pairs)]
-    str_tertiary = []
-
-    for i, I in enumerate(tertiary_bp):
-        if i == 0:
-            str_tertiary += ('(' + str(I[0]) + ',' + str(I[1]) + '):color=""#FFFF00""')
-        else:
-            str_tertiary += (';(' + str(I[0]) + ',' + str(I[1]) + '):color=""#FFFF00""')
-
-    tertiary_bp = ''.join(str_tertiary)
-
-    # return ct_dict,dot_file_dict
-    return ct_dict, dot_file_dict, tertiary_bp
-
-
-def ct_file_output(pairs, seq, seq_name, save_result_path):
-    # pdb.set_trace()
-    col1 = np.arange(1, len(seq) + 1, 1)
-    col2 = np.array([i for i in seq])
-    col3 = np.arange(0, len(seq), 1)
-    col4 = np.append(np.delete(col1, 0), [0])
-    col5 = np.zeros(len(seq), dtype=int)
-
-    for i, I in enumerate(pairs):
-        col5[I[0] - 1] = int(I[1])
-    col6 = np.arange(1, len(seq) + 1, 1)
-    temp = np.vstack((np.char.mod('%d', col1), col2, np.char.mod('%d', col3), np.char.mod('%d', col4),
-                      np.char.mod('%d', col5), np.char.mod('%d', col6))).T
-    np.savetxt(os.path.join(save_result_path, seq_name.replace('/', '_')) + '.ct', (temp), delimiter='\t', fmt="%s",
-               header='>seq length: ' + str(len(seq)) + '\t seq name: ' + seq_name.replace('/', '_'), comments='')
-
-    return
-
-
-def type_pairs(pairs, sequence):
-    sequence = [i.upper() for i in sequence]
-
-    AU_pair = []
-    GC_pair = []
-    GU_pair = []
-    other_pairs = []
-    for i in pairs:
-        if [sequence[i[0] - 1], sequence[i[1] - 1]] in [["A", "U"], ["U", "A"]]:
-            AU_pair.append(i)
-        elif [sequence[i[0] - 1], sequence[i[1] - 1]] in [["G", "C"], ["C", "G"]]:
-            GC_pair.append(i)
-        elif [sequence[i[0] - 1], sequence[i[1] - 1]] in [["G", "U"], ["U", "G"]]:
-            GU_pair.append(i)
-        else:
-            other_pairs.append(i)
-    watson_pairs_t = AU_pair + GC_pair
-    wobble_pairs_t = GU_pair
-    other_pairs_t = other_pairs
-    return watson_pairs_t, wobble_pairs_t, other_pairs_t
-
-
 def get_prediction_file(contact_net, test_generator,output_file):
+    '''function to create numpy files with contact matrix from given network and given dataset
+
+    Args:
+        contact_net (Network.U_Net): UFold model, which should be tested
+        test_generator (RNASSDataGenerator): generator with the dataset, which should be tested
+        output_file (str): path under which the newly created files should be stored
+
+    Returns:
+        None
+            creates two numpy files under output_file_matrix_nopp.npy and output_file_matrix_pp.npy
+    '''
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     contact_net.train()
     matrix_nopp_file = output_file + "_matrix_nopp.npy"
@@ -162,16 +66,60 @@ def get_prediction_file(contact_net, test_generator,output_file):
     np.save(matrix_pp_file, matrices_pp)
 
 
-def main():
+def main(folder, file_names, model = "models/ufold_train.pt", ):
+    '''creates numpy files with predictions of input file with and without postprocessing
+
+    Function creates two numpy files from the input file(s) (file_names), which are stored in the input folder.
+    The two files are created using the function get_prediction_file and store the predictions of the model with and without postprocessing
+    in the given folder.
+    The files are used for the evaluations done in the file ml_forensic.py. A model can be specified with the
+    model argument, as default the ufold model is selected
+
+    Args:
+        folder (str): path to the folder where the numpy files with the structure and sequences are saved, and where the nely created files are stores
+        file_name (str, list): name of the file names which should be predicted, can be only one file as a string or multiple files as a list
+        model (str): optional, path to the model, which should be used for the prediction, default = "models/ufold_train.pt"
+
+    Returns:
+        None
+            creates the numpy files for the prediction with and without postprocessing
+
+    '''
     torch.multiprocessing.set_sharing_strategy('file_system')
     device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 
-    MODEL_SAVED = "ufold_training/06_01_2023/12_11_2.pt"
-    root_folder = "data/analysis/length/length_inverse/"
-    for n in range(30,251,10):
-        test_file = f"N1000_n{n}_ss"
-        output_file = f"data/analysis/length/length_inverse/N1000_n{n}"
-        test_data = RNASSDataGenerator_input(root_folder, test_file)
+    if type(file_names) == list:
+        for file_name in file_names:
+            if folder.endswith("/"):
+                output_file = folder + file_name
+            else:
+                output_file = folder + "/" + file_name
+            test_data = RNASSDataGenerator_input(folder, file_name)
+            params = {'batch_size': 1,
+                      'shuffle': False,
+                      'num_workers': 6,
+                      'drop_last': False}
+
+            test_set = Dataset_FCN(test_data)
+            test_generator = data.DataLoader(test_set, **params)
+            contact_net = FCNNet(img_ch=17)
+
+            print('==========Start Loading Pretrained Model==========')
+            contact_net.load_state_dict(torch.load(model, map_location='cpu'))
+            print(f"Model: {model} loaded")
+            print('==========Finish Loading Pretrained Model==========')
+            # contact_net = nn.DataParallel(contact_net, device_ids=[3, 4])
+            contact_net.to(device)
+            print(f'==========Start Predicting file {file_name}==========')
+            get_prediction_file(contact_net, test_generator, output_file)
+            print(f'==========Finish Predicting file {file_name}==========')
+    else:
+        file_name = file_names
+        if folder.endswith("/"):
+            output_file = folder + file_name
+        else:
+            output_file = folder + "/" + file_name
+        test_data = RNASSDataGenerator_input(folder, file_name)
         params = {'batch_size': 1,
                   'shuffle': False,
                   'num_workers': 6,
@@ -182,14 +130,14 @@ def main():
         contact_net = FCNNet(img_ch=17)
 
         print('==========Start Loading Pretrained Model==========')
-        contact_net.load_state_dict(torch.load(MODEL_SAVED, map_location='cpu'))
-        print(f"Model: {MODEL_SAVED} loaded")
+        contact_net.load_state_dict(torch.load(model, map_location='cpu'))
+        print(f"Model: {model} loaded")
         print('==========Finish Loading Pretrained Model==========')
         # contact_net = nn.DataParallel(contact_net, device_ids=[3, 4])
         contact_net.to(device)
-        print(f'==========Start Predicting file {test_file}==========')
+        print(f'==========Start Predicting file {file_name}==========')
         get_prediction_file(contact_net, test_generator, output_file)
-        print(f'==========Finish Predicting file {test_file}==========')
+        print(f'==========Finish Predicting file {file_name}==========')
 
 
 if __name__ == '__main__':
@@ -197,7 +145,9 @@ if __name__ == '__main__':
     See module-level docstring for a description of the script.
     """
     RNA_SS_data = collections.namedtuple('RNA_SS_data', 'seq ss_label length name pairs')
-    main()
+    folder = "data/analysis/type_analysis/ufold_model/"
+    model = "models/ufold_train.pt"
+    main(model = model, folder = folder)
 
 
 
